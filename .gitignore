@@ -1,5 +1,7 @@
 logs/
 .env
-antispam.service
+antispam.*
 *.session
 *.session-journal
+*.db
+*.txt

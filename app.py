@@ -1,3 +1,5 @@
+# region IMPORTS
+import inspect
 import logging
 import os
 import re
@@ -5,6 +7,7 @@ import datetime
 import asyncio
 import time
 from typing import List, Optional
+import pyrogram
 from pyrogram import Client, filters  # type: ignore
 from pyrogram.types import (
     Message,
@@ -12,17 +15,30 @@ from pyrogram.types import (
     InlineKeyboardMarkup,
     CallbackQuery,
 )
+
 import unidecode
 import aiohttp
 from dotenv import load_dotenv
 from logging.handlers import RotatingFileHandler
 from users import Users, User
+# endregion
 
+
+# region ENVIRONMENT_SETUP
 # Загрузка переменных окружения из .env файла
 load_dotenv()
 
-# Параметры для логирования
-log_dir = "logs"  # Папка для хранения логов
+# Токены и ключи для работы с API
+token = os.getenv("TOKEN") or exit("TOKEN is not set")
+bot_token = os.getenv("BOT_TOKEN") or exit("BOT_TOKEN is not set")
+api_id = os.getenv("API_ID") or exit("API_ID is not set")
+api_hash = os.getenv("API_HASH") or exit("API_HASH is not set")
+# endregion
+
+
+# region LOGGING_SETUP
+# Папка для хранения логов
+log_dir = "logs"
 os.makedirs(log_dir, exist_ok=True)  # Создание папки, если она не существует
 
 # Формирование имени файла лога с датой
@@ -47,13 +63,10 @@ file_handler.setFormatter(formatter)
 
 # Добавляем обработчик к логгеру
 logger.addHandler(file_handler)
+# endregion
 
-# Токены и ключи для работы с API
-token = os.getenv("TOKEN") or exit("TOKEN is not set")
-bot_token = os.getenv("BOT_TOKEN") or exit("BOT_TOKEN is not set")
-api_id = os.getenv("API_ID") or exit("API_ID is not set")
-api_hash = os.getenv("API_HASH") or exit("API_HASH is not set")
 
+# region BOT_INITIALIZATION
 # Инициализация бота с использованием токенов
 bot = Client(
     "bot",
@@ -61,23 +74,67 @@ bot = Client(
     api_hash=api_hash,
     bot_token=bot_token,
 )
+# endregion
 
 
-# Функция для проверки пользователя через FunStat API
+# region 1.FUNCTIONS
+#
+#
+#
+#
+#
+
+
+# region BAN_FUNCTION
+
+
+async def ban_user(
+    client: Client,
+    user_id: int,
+    channels: List[str] = open("channels.txt", "r", encoding="utf-8")
+    .read()
+    .splitlines(),
+):
+    try:
+        for channel in channels:
+            try:
+                await client.ban_chat_member(channel, user_id)
+                logging.info(f"Ban user {user_id} in channel {channel}")
+                await asyncio.sleep(0.5)
+            except Exception:
+                logging.warning(f"Failed to ban user {user_id} in channel {channel}")
+                pass
+        with open("banned.txt", "a", encoding="utf-8") as f:
+            f.write(f"{user_id}\n")
+
+    except Exception as e:
+        logger.exception(
+            f"Error at {ban_user.__name__}:{inspect.getframeinfo(inspect.currentframe()).lineno}: {e}"
+        )
+        return False
+
+
+# endregion
+
+
+# region CHECK_USER
 async def check_user(user_id: int) -> bool | Optional[str]:
     """
     Проверяет, когда пользователь отправил своё первое сообщение.
     Возвращает строку "True"/"False", если прошло более 60 дней с первого сообщения.
     Если возникли ошибки, возвращает сообщение об ошибке.
 
-    :param username: Имя пользователя.
+    :param user_id: ID пользователя.
     :return: Строка с результатом проверки.
     """
     if not user_id:
-        return False
-
+        logger.exception(
+            f"Error at {check_user.__name__}:{inspect.getframeinfo(inspect.currentframe()).lineno}: User ID is required"
+        )
+        raise ValueError("User ID is required")
+    # if user_id == 5957115070:
+    #     return False
     try:
-        # Выполняем запрос к FunStat API для получения данных пользователя
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"http://funstat.org/api/v1/users/{user_id}/stats_min",
@@ -92,35 +149,45 @@ async def check_user(user_id: int) -> bool | Optional[str]:
                 if not first_msg_date_str:
                     return False
 
-                # Преобразуем дату первого сообщения в объект datetime
+                # Преобразуем дату первого сообщения в объект datetime с временной зоной UTC
                 first_msg_date = datetime.datetime.strptime(
                     first_msg_date_str, "%Y-%m-%dT%H:%M:%SZ"
-                )
-                delta = datetime.datetime.now(datetime.UTC) - first_msg_date
-
+                ).replace(tzinfo=datetime.timezone.utc)
+                delta = datetime.datetime.now(datetime.timezone.utc) - first_msg_date
+                logging.info(delta)
                 # Если с первого сообщения прошло больше 60 дней, возвращаем True
                 if delta >= datetime.timedelta(days=60):
                     return result
                 else:
                     return False
-    except Exception:
+    except Exception as e:
+        logging.error(f"Error fetching data: {e}")
         return False
 
 
-# Функция для чтения списка запрещенных слов из файла
+# endregion
+
+
+# region GET_KEYWORDS
 def get_keywords() -> List[str]:
-    """Читает список запрещенных слов из файла."""
+    """
+    Читает список запрещенных слов из файла.
+    """
     try:
         with open("bad_words.txt", "r", encoding="utf-8") as f:
-            keywords = unidecode.unidecode(f.read().lower().replace(" ", "")).split(
-                "\n"
-            )
+            keywords = unidecode.unidecode(
+                f.read().lower().replace(" ", "")
+            ).splitlines()
         return keywords
     except Exception:
         return []
 
 
-@bot.on_message(filters.text & filters.command(["add_badword"]))
+# endregion
+
+
+# region ADD_BADWORD
+@bot.on_message(filters.command(["add_badword"]))
 async def add_badword(client, message: Message):
     word = " ".join(message.text.split(" ")[1:])
     with open("bad_words.txt", "a", encoding="utf-8") as f:
@@ -131,17 +198,22 @@ async def add_badword(client, message: Message):
     )
 
 
+# endregion
+
+
+# region ON_NEW_MEMBER
 @bot.on_message(filters.new_chat_members)
 async def on_new_member(client: Client, message: Message):
-    # Проверяем, был ли добавлен именно бот
     for new_member in message.new_chat_members:
         if new_member.is_self:
-            # Отправляем сообщение, когда бот был добавлен в чат
-            await message.reply("Привет! Я был добавлен в этот чат. Чем могу помочь?")
-            break
+            add_new_chat(message.chat.id)
+            await start(client, message)
 
 
-# Функция для поиска запрещенных слов в тексте
+# endregion
+
+
+# region SEARCH_KEYWORDS    
 def search_keywords(text: str) -> bool:
     """
     Ищет запрещенные слова в тексте и возвращает True, если их больше 3.
@@ -149,6 +221,9 @@ def search_keywords(text: str) -> bool:
     :param text: Текст сообщения.
     :return: True, если найдено больше 3 запрещенных слов.
     """
+
+    text = unidecode.unidecode(text)
+
     try:
         keywords = get_keywords() or ["слово"]
         pattern = r"(" + "|".join(keywords) + r")"
@@ -156,22 +231,140 @@ def search_keywords(text: str) -> bool:
         found_keywords = [
             match.group() for match in re.finditer(pattern, text, re.IGNORECASE)
         ]
-
-        # Если найдено больше 3 запрещенных слов, возвращаем True
-        return len(found_keywords) > 3
+        return len(found_keywords) > 4
     except Exception:
         return False
 
 
-# Команда /start
-@bot.on_message(filters.text & filters.command(["start"]))
+# endregion
+
+
+# region BAN
+@bot.on_message(filters.command(["ban"]) & filters.user(5957115070))
+async def ban(client: Client, message: Message):
+    if message.reply_to_message:
+        user_id = message.reply_to_message.from_user.id
+    elif message.text.split(" ")[1:]:
+        user_id = int(message.text.split(" ")[1])
+    else:
+        await message.reply("Укажите ID пользователя после команды.")
+        return
+    if not user_id:
+        return
+    await ban_user(client, user_id)
+
+    await message.reply(f"Пользователь `{user_id}` забанен.")
+
+
+# endregion
+
+
+# region IGNORE
+@bot.on_message(filters.command(["ignore"]))
+async def ignore(client: Client, message: Message):
+    if message.reply_to_message:
+        if message.reply_to_message:
+            user_id = message.reply_to_message.from_user.id
+    elif message.text.split(" ")[1:]:
+        user_id = int(message.text.split(" ")[1])
+    else:
+        await message.reply("Укажите ID пользователя после команды.")
+        return
+    if not user_id:
+        return
+
+    ignore_list = open("ignore.txt", "r", encoding="utf-8").read().splitlines()
+    if user_id not in ignore_list:
+        with open("ignore.txt", "a", encoding="utf-8") as f:
+            f.write(f"\n{user_id}")
+        await message.reply(f"Пользователь `{user_id}` добавлен в список игнорируемых.")
+    else:
+        await message.reply(f"Пользователь `{user_id}` уже в списке игнорируемых.")
+
+
+# endregion
+
+
+# region START_COMMAND
+@bot.on_message(filters.command(["start"]))
 async def start(client: Client, message: Message):
     await message.reply(
-        "Добро пожаловать! Я антиспам бот. Используйте /list, чтобы увидеть текущий список запрещенных слов."
+        """
+<b>👋 Всем привет!</b> Я <b>антиспам-бот</b>. 🛡️
+        
+📝 <b>Контакты</b> 
+Хотите написать оскорбления админу, используйте команду <b>/contact</b>. 📬
+
+💡 <b>Есть идеи для улучшения?</b> 
+Одмены, не стесняйтесь писать через тот же <b>/contact</b>. Мы ждём ваши предложения! ✨
+
+ℹ️ <b>Интересно, как я работаю?</b> 
+Воспользуйтесь командой <b>/info</b> для подробностей. 🔍
+        """
     )
 
 
-@bot.on_message(filters.text & filters.command(["gen_regex"]))
+# endregion
+
+
+# region INFO_COMMAND
+@bot.on_message(filters.command(["info"]))
+async def info(client: Client, message: Message):
+    """
+    Информация о механизме фильтрации бота.
+    """
+    await message.reply(
+        """
+<b>ℹ️ Информация о боте</b>
+
+<b>🛠️ Механизм фильтрации:</b>
+🔹 <i>Фильтрация сообщений:</i> Все входящие сообщения проверяются на наличие запрещенных слов из заранее заданного списка, который можно редактировать через команды.  
+🔹 <i>Обработка нарушений:</i>  
+    - Если в сообщении обнаружено <b>более 3 запрещенных слов</b>, оно автоматически удаляется.  
+    - Нарушения фиксируются, и сообщения могут быть переданы администратору для принятия мер.  
+🔹 <i>Анализ активности пользователей:</i>  
+    - Проверка через <b>API FunStat</b>:  
+        * Если пользователь не отправлял сообщений более <b>60 дней</b>, он помечается как подозрительный.  
+🔹 <i>Удобные кнопки для администраторов:</i>  
+    - <b>Заблокировать пользователя</b>.  
+    - <b>Удалить сообщение</b>.  
+    - <b>Отменить действие</b>.  
+
+<b>✨ Ключевые особенности:</b>
+✔️ Автоматическое удаление сообщений с запрещенными словами.  
+✔️ Прямое взаимодействие с администраторами чата для мониторинга активности.  
+✔️ Возможность настройки автоматической очистки чатов от подозрительных сообщений.  
+
+<b>💡 Дополнительная информация:</b>
+Фильтрация происходит <b>в реальном времени</b>, не требуя дополнительных действий от пользователей. Администраторы могут управлять списком запрещенных слов и настраивать автоматическое поведение через команды.
+
+<b>🔗 Рекомендация:</b>  
+Если вам нужен сервис для пробива или поиска информации о людях или каналах в Telegram, попробуйте бот <b>FunStat</b>.  
+🌟 Ссылка: <a href="https://t.me/ofunstat_robot?start=0101BE5C126301000000">FunStat</a>  
+
+💬 Для связи с администратором используйте команду: /contact
+        """
+    )
+
+
+# endregion
+
+
+# region CONTACT_COMMAND
+@bot.on_message(filters.command(["contact"]) & filters.private)
+async def contact(client: Client, message: Message):
+    await client.send_message(
+        "amnesiawho1",
+        f"Новая попытка связаться от {message.from_user.username or message.chat.id}",
+    )
+    await message.reply("@amnesiawho1")
+
+
+# endregion
+
+
+# region GEN_REGEX_COMMAND
+@bot.on_message(filters.command(["gen_regex"]))
 async def gen_regex(client: Client, message: Message):
     keywords = get_keywords() or ["слово"]
     # Составляем регулярное выражение для поиска запрещенных слов
@@ -179,23 +372,41 @@ async def gen_regex(client: Client, message: Message):
     await message.reply(pattern)
 
 
-@bot.on_message(filters.text & filters.command(["invert"]))
+# endregion
+
+
+# region INVERT_COMMAND
+@bot.on_message(filters.command(["invert"]))
 async def invert(client: Client, message: Message):
-    await message.reply(unidecode.unidecode(message.text.split("#")[1]))
+    """
+    Inverts the given text.
+
+    Example: /invert#hello -> hello
+    """
+    text = message.text.split(" ", 1)[1]
+    if not text:
+        await message.reply("Empty message")
+    await message.reply(f"`{unidecode.unidecode(text)}`")
 
 
-# Команда /list - выводит список запрещенных слов
-@bot.on_message(filters.text & filters.command(["list"]))
+# endregion
+
+
+# region LIST_COMMAND
+@bot.on_message(filters.command(["list"]))
 async def list_command(client: Client, message: Message) -> None:
     """Команда для вывода списка запрещенных слов."""
     try:
         bad_words = get_keywords()
-        await message.reply(f"```Запретки\n{"\n".join(bad_words)}```")
+        await message.reply(f"```Запретки\n{'\n'.join(bad_words)}```")
     except Exception:
         await message.reply("Ошибка при обработке запроса.")
 
 
-# Команда /check - проверяет пользователя через FunStat API
+# endregion
+
+
+# region CHECK_COMMAND
 @bot.on_message(filters.text & filters.command(["check"]))
 async def check_command(client: Client, message: Message) -> None:
     """Команда для проверки пользователя через FunStat API."""
@@ -203,20 +414,21 @@ async def check_command(client: Client, message: Message) -> None:
         user_id = message.text.split(" ")[1]
         if not user_id.isdigit():
             user = await client.get_chat_member(message.chat.id, user_id)
-            user_id = int(user.user.id)
+            user_id = user.user.id
         else:
             user_id = int(user_id)
-        result = (
-            await check_user(user_id) or "Пользователь не найден."
-        )  # Проверяем пользователя через API
-        await message.reply(result)
+        result = str(await check_user(user_id))  # Проверяем пользователя через API
+        await message.reply(result or "Пользователь не найден.")
     except IndexError:
         await message.reply("Укажите имя пользователя после команды.")
     except Exception as e:
         await message.reply(f"Ошибка при обработке запроса. {e}")
 
 
-# Отмена действия по кнопке "cancel"
+# endregion
+
+
+# region DELETE_CALLBACK
 @bot.on_callback_query(filters.regex(r"delete"))
 async def delete(client: Client, callback_query: CallbackQuery):
     chat_id = callback_query.message.chat.id
@@ -239,6 +451,10 @@ async def delete(client: Client, callback_query: CallbackQuery):
     await callback_query.message.delete()
 
 
+# endregion
+
+
+# region CANCEL_CALLBACK
 @bot.on_callback_query(filters.regex(r"cancel"))
 async def cancel(client: Client, callback_query: CallbackQuery):
     chat_id = callback_query.message.chat.id
@@ -251,7 +467,10 @@ async def cancel(client: Client, callback_query: CallbackQuery):
         )
 
 
-# Бан пользователя по кнопке
+# endregion
+
+
+# region BAN_CALLBACK
 @bot.on_callback_query(filters.regex(r"ban_user_(\d+)_(\d+)"))
 async def check_admin_or_moderator(client: Client, callback_query: CallbackQuery):
     try:
@@ -261,6 +480,7 @@ async def check_admin_or_moderator(client: Client, callback_query: CallbackQuery
         chat_id = callback_query.message.chat.id
         chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
         target = await client.get_chat_member(chat_id, user_id)
+
         # Проверяем, является ли пользователь администратором
         if chat_member.status.value not in ["administrator", "owner"]:
             await callback_query.answer(
@@ -275,7 +495,6 @@ async def check_admin_or_moderator(client: Client, callback_query: CallbackQuery
                 "У вас нет прав для выполнения этого действия!", show_alert=True
             )
             return
-        
 
         # Баним пользователя, если его ID не равен исключенному
         if user_id != 5957115070:
@@ -284,25 +503,27 @@ async def check_admin_or_moderator(client: Client, callback_query: CallbackQuery
                     "Цель является администратором, не могу забанить(", show_alert=True
                 )
                 return
-            else: 
+            else:
                 await client.ban_chat_member(chat_id, user_id)
         else:
             await callback_query.answer(
                 "Ты уверен что себя хочешь забанить?", show_alert=True
             )
             return
-        
+
         await callback_query.answer("Забанен!", show_alert=True)
         await client.delete_messages(chat_id, [msg_id, callback_query.message.id])
-
 
         with open("ban_sentenses.txt", "a", encoding="utf-8") as f:
             f.write(callback_query.message.reply_to_message.text + "\n")
     except Exception as e:
         await callback_query.answer(f"Ошибка при бане: {e}", show_alert=True)
-    
 
-# Функция для создания кнопок с баном и отменой
+
+# endregion
+
+
+# region BAN_BUTTON
 def ban_button(user_id: int, msg_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
@@ -324,18 +545,26 @@ def ban_button(user_id: int, msg_id: int) -> InlineKeyboardMarkup:
     )
 
 
+# endregion
+
+
+# region GET_AUTOS
 @bot.on_message(filters.text & filters.command(["get_autos"]))
 async def get_autos(client: Client, message: Message):
     autos = open("autos.txt", "r", encoding="utf-8").read().split("\n")
     await message.reply("\n".join(autos))
 
 
+# endregion
+
+
+# region AUTOCLEAN_COMMANDS
 @bot.on_message(filters.text & filters.command(["autoclean"]))
 async def add_autos(client: Client, message: Message):
     if message.from_user.status.value not in ["administrator", "owner"]:
         await message.reply("Вы не являетесь администратором или основателем!")
         return
-    
+
     autos = open("autos.txt", "r", encoding="utf-8").read().split("\n")
     if message.chat.id not in autos:
         autos.append(str(message.chat.id))
@@ -348,6 +577,7 @@ async def add_autos(client: Client, message: Message):
     await message.delete()
     await msg.delete()
 
+
 @bot.on_message(filters.text & filters.command(["remove_autoclean"]))
 async def remove_autos(client: Client, message: Message):
     autos = open("autos.txt", "r", encoding="utf-8").read().split("\n")
@@ -357,44 +587,61 @@ async def remove_autos(client: Client, message: Message):
     await message.reply("Авто удалено!")
 
 
-# Основная логика для обработки текстовых сообщений
-@bot.on_message(filters.text & ~filters.channel)
+# endregion
+
+
+# region ADD_NEW_CHAT
+def add_new_chat(chat_id: int) -> None:
+    with open("channels.txt", "r", encoding="utf-8") as r:
+        channels = r.read().splitlines()
+
+    channel_id = str(chat_id)
+    if channel_id not in channels:
+        with open("channels.txt", "a", encoding="utf-8") as w:
+            if channel_id.startswith("-"):
+                w.write(f"{channel_id}\n")
+
+
+# endregion
+
+
+# endregion  # FUNCTIONS
+
+
+# region MAIN_HANDLER
+@bot.on_message(filters.text & ~filters.channel & ~filters.private)
 async def main(client: Client, message: Message) -> None:
     """
     Обрабатывает входящие текстовые сообщения, проверяет наличие запрещенных слов.
     Если слова найдены, удаляет сообщение и логирует.
     """
+
+    ignore_list = open("ignore.txt", "r", encoding="utf-8").read().splitlines()
+    if message.from_user.id in ignore_list:
+        return
+    logging.info(
+        f"{message.from_user.id} to {f'https://t.me/{message.chat.username}' or message.chat.id }: {" ".join(message.text.splitlines())}"
+    )
     try:
-        autos = open("autos.txt", "r", encoding="utf-8").read().split("\n")
+        add_new_chat(message.chat.id)
 
-        if not message.text:
-            return  # Если сообщение пустое, игнорируем его
+        if search_keywords(message.text):
+            if not await check_user(message.from_user.id):
+                await message.forward("amnesiawho1")
+                await message.delete()
+                await ban_user(client, message.from_user.id)
+            # else:
+            #     with open("ignore.txt", "a", encoding="utf-8") as f:
+            #         f.write(f"\n{message.from_user.id}")
 
-        # Преобразуем текст в нормализованный вид
-        text = unidecode.unidecode(message.text)
-
-        # Проверяем наличие запрещенных слов
-        if search_keywords(text):
-            # Проверяем, является ли пользователь валидным
-            is_user_valid = await check_user(message.from_user.id)
-
-            # Если пользователь не прошел проверку или является исключением, пропускаем его
-            if is_user_valid == "False" and message.from_user.id != 5957115070:
-                return
-            else:
-                await message.forward("amnesiawho1")  # Пересылаем сообщение в канал
-            if str(message.chat.id) in autos:
-                await message.reply(
-                    "Подозрительное сообщение!",
-                    reply_markup=ban_button(message.from_user.id, message.id),
-                )
-                return
-            await message.delete()
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
 
 
-# Запуск бота
+# endregion
+
+
+# region BOT_RUNNER
 if __name__ == "__main__":
     start_time = time.time()  # Засекаем время старта бота
     bot.run()  # Запускаем бота
@@ -404,3 +651,4 @@ if __name__ == "__main__":
     logger.info(
         f"Total uptime {total_time if total_time < 3600 else int(total_time/60)} seconds. Bot stopped."
     )
+# endregion

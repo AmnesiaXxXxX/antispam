@@ -218,9 +218,9 @@ async def set_threshold(client: Client, message: Message):
         chat_member = await client.get_chat_member(
             message.chat.id, message.from_user.id
         )
-        if chat_member.status.value not in ["administrator", "owner"]:
-            await message.reply("Только администраторы могут менять порог!")
+        if not await check_is_admin_callback(client):
             return
+
 
         # Получаем новое значение порога
         new_threshold = float(message.text.split()[1])
@@ -321,10 +321,9 @@ async def check_command(client: Client, message: Message) -> None:
 async def delete(client: Client, callback_query: CallbackQuery):
     chat_id = callback_query.message.chat.id
     chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
-    if chat_member.status.value not in ["administrator", "owner"]:
-        await callback_query.answer(
-            "Вы не являетесь администратором или основателем!", show_alert=True
-        )
+    if not await check_is_admin_callback(client, callback_query):
+        return
+
     if (
         not chat_member.privileges.can_delete_messages
         and not chat_member.privileges.can_restrict_members
@@ -350,6 +349,33 @@ async def cancel(client: Client, callback_query: CallbackQuery):
             "Вы не являетесь администратором или основателем!", show_alert=True
         )
 
+async def check_is_admin(client: Client, message: Message) -> bool:
+    """
+    Проверяет, что пользователь, отправивший сообщение, является админом или создателем.
+    Если нет — отправляет ответ и возвращает False.
+    """
+    if message.from_user.status.value not in ["administrator", "owner"]:
+        await message.reply("Вы не являетесь администратором или основателем!")
+        await asyncio.sleep(10.0)
+        return
+
+
+
+async def check_is_admin_callback(client: Client, callback_query: CallbackQuery) -> bool:
+    """
+    Проверяет, что пользователь, нажавший кнопку, является админом или создателем.
+    Если нет — отправляет ответ и возвращает False.
+    """
+    chat_id = callback_query.message.chat.id
+    chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
+    if chat_member.status.value not in ["administrator", "owner"]:
+
+        await callback_query.answer(
+            "Вы не являетесь администратором или основателем!",
+            show_alert=True
+        )
+        return False
+    return True
 
 # Бан пользователя по кнопке
 @bot.on_callback_query(filters.regex(r"ban_user_(\d+)_(\d+)"))
@@ -362,11 +388,9 @@ async def check_admin_or_moderator(client: Client, callback_query: CallbackQuery
         chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
         target = await client.get_chat_member(chat_id, user_id)
         # Проверяем, является ли пользователь администратором
-        if chat_member.status.value not in ["administrator", "owner"]:
-            await callback_query.answer(
-                "Вы не являетесь администратором или основателем!", show_alert=True
-            )
+        if not await check_is_admin_callback(client, callback_query):
             return
+
         if (
             not chat_member.privileges.can_delete_messages
             and not chat_member.privileges.can_restrict_members
@@ -430,9 +454,13 @@ async def get_autos(client: Client, message: Message):
 
 @bot.on_message(filters.text & filters.command(["autoclean"]))
 async def add_autos(client: Client, message: Message):
+<<<<<<< HEAD
     if message.from_user.status.value not in ["administrator", "owner"]:
         await message.reply("Вы не являетесь администратором или основателем!")
         await asyncio.sleep(10.0)
+=======
+    if not await check_is_admin(client, message):
+>>>>>>> 59a85ca8479b5074cbb6a3322309575f3d3532ae
         return
     autos = open("autos.txt", "r", encoding="utf-8").read().split("\n")
     if message.chat.id not in autos:

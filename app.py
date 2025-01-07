@@ -468,7 +468,7 @@ async def main(client: Client, message: Message) -> None:
 
         # Преобразуем текст в нормализованный вид
         text = message.text
-
+        logger.info(f"Processing message from {message.from_user.id} in chat {message.chat.id}")
         # Проверяем наличие запрещенных слов
         if search_keywords(text):
             # Проверяем, является ли пользователь валидным

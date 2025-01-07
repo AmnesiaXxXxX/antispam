@@ -212,7 +212,67 @@ async def callback_query(client, callback_query: CallbackQuery):
         await callback_query.message.edit_text(
             "🔧 Главное меню настроек бота:", reply_markup=get_main_menu()
         )
+        
+    elif data == "autoclean_settings":
+        # Проверяем, включена ли автомодерация для этого чата
+        try:
+            with open("autos.txt", "r", encoding="utf-8") as f:
+                autos = f.read().splitlines()
+        except FileNotFoundError:
+            autos = []
+            
+        is_auto = str(callback_query.message.chat.id) in autos
+        status = "✅ Включена" if is_auto else "❌ Выключена"
+        
+        autoclean_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton(
+                "🔄 Переключить автомодерацию", 
+                callback_data="toggle_autoclean"
+            )],
+            [InlineKeyboardButton("◀️ Назад", callback_data="settings")]
+        ])
+        
+        await callback_query.message.edit_text(
+            f"⚙️ Настройки автомодерации\n\n"
+            f"Текущий статус: {status}\n\n"
+            f"При включенной автомодерации подозрительные сообщения "
+            f"будут удаляться автоматически, без подтверждения администратора.",
+            reply_markup=autoclean_markup
+        )
 
+    elif data == "toggle_autoclean":
+        if not await check_is_admin_callback(client, callback_query):
+            return
+            
+        chat_id = str(callback_query.message.chat.id)
+        try:
+            with open("autos.txt", "r", encoding="utf-8") as f:
+                autos = f.read().splitlines()
+        except FileNotFoundError:
+            autos = []
+            
+        if chat_id in autos:
+            autos.remove(chat_id)
+            status = "выключена"
+        else:
+            autos.append(chat_id)
+            status = "включена"
+            
+        with open("autos.txt", "w", encoding="utf-8") as f:
+            f.write("\n".join(autos))
+            
+        await callback_query.answer(f"Автомодерация {status}!", show_alert=True)
+        
+        # Обновляем сообщение с актуальным статусом
+        await callback_query.message.edit_reply_markup(
+            InlineKeyboardMarkup([
+                [InlineKeyboardButton(
+                    "🔄 Переключить автомодерацию", 
+                    callback_data="toggle_autoclean"
+                )],
+                [InlineKeyboardButton("◀️ Назад", callback_data="settings")]
+            ])
+        )
 
 # Функция для проверки пользователя через FunStat API
 async def check_user(user_id: int) -> bool | Optional[str]:
@@ -602,3 +662,4 @@ if __name__ == "__main__":
     logger.info(
         f"Total uptime {total_time if total_time < 3600 else int(total_time/60)} seconds. Bot stopped."
     )
+```

@@ -255,10 +255,11 @@ async def callback_query(client, callback_query: CallbackQuery):
 
         if chat_id in autos:
             autos.remove(chat_id)
-            status = "выключена"
+            status = "✅ Включена"
+
         else:
             autos.append(chat_id)
-            status = "включена"
+            status = "❌ Выключена"
 
         with open("autos.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(autos))

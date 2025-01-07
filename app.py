@@ -163,7 +163,6 @@ def get_special_patterns() -> List[str]:
         r"[\u2600-\u26FF]",  # Различные символы
         r"[\u2700-\u27BF]",  # Дополнительные символы
         r"[\uFF00-\uFFEF]",  # Полноширинные формы
-        r"[\U0001F300-\U0001F9FF]",  # Эмодзи
     ]
 
 
@@ -203,8 +202,7 @@ def search_keywords(text: str) -> bool:
                 special_chars_found += 1
 
         # Добавляем баллы за спец-символы
-        score += special_chars_found * 0.5
-
+        score += special_chars_found * 1.5
         return score >= SPAM_THRESHOLD
 
     except Exception as e:

@@ -394,23 +394,29 @@ async def check_command(client: Client, message: Message) -> None:
 # Отмена действия по кнопке "cancel"
 @bot.on_callback_query(filters.regex(r"delete"))
 async def delete(client: Client, callback_query: CallbackQuery):
-    chat_id = callback_query.message.chat.id
-    chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
-    if not await check_is_admin_callback(client, callback_query):
-        return
+    try:
+        # Проверка прав администратора
+        if not await check_is_admin_callback(client, callback_query):
+            await callback_query.answer(
+                "У вас нет прав для выполнения этого действия!", show_alert=True
+            )
+            return
 
-    if (
-        not chat_member.privileges.can_delete_messages
-        and not chat_member.privileges.can_restrict_members
-    ):
-        await callback_query.answer(
-            "У вас нет прав для выполнения этого действия!", show_alert=True
+        # Удаление сообщений
+        messages_to_delete = [
+            callback_query.message.reply_to_message.id,
+            callback_query.message.id,
+        ]
+
+        await client.delete_messages(callback_query.message.chat.id, messages_to_delete)
+        db.update_stats(callback_query.message.chat.id, deleted=True)
+        logger.info(
+            f"Messages {messages_to_delete} deleted in chat {callback_query.message.chat.id}"
         )
-        return
-    await client.delete_messages(
-        callback_query.message.chat.id, callback_query.message.reply_to_message.id
-    )
-    await callback_query.message.delete()
+
+    except Exception as e:
+        logger.error(f"Error deleting messages: {e}")
+        await callback_query.answer("Ошибка при удалении сообщений", show_alert=True)
 
 
 @bot.on_callback_query(filters.regex(r"cancel"))

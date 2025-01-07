@@ -66,7 +66,7 @@ bot = Client(
 )
 
 # Добавляем после импортов
-SPAM_THRESHOLD = 3  # Порог по умолчанию
+SPAM_THRESHOLD = float(os.getenv("SPAM_THRESHOLD", "3"))  # Порог по умолчанию
 
 # Функция для проверки пользователя через FunStat API
 async def check_user(user_id: int) -> bool | Optional[str]:
@@ -210,7 +210,7 @@ def search_keywords(text: str) -> bool:
         logger.error(f"Ошибка при поиске ключевых слов: {str(e)}")
         return False
 
-@bot.on_message(filters.text & filters.command(["set_threshold"]))
+@bot.on_message(filters.text & filters.command("set_threshold"))
 async def set_threshold(client: Client, message: Message):
     """Команда для изменения порога спама."""
     try:
@@ -226,12 +226,38 @@ async def set_threshold(client: Client, message: Message):
             await message.reply("Порог должен быть положительным числом!")
             return
 
+        # Обновляем значение в памяти
         global SPAM_THRESHOLD
         SPAM_THRESHOLD = new_threshold
-        await message.reply(f"Новый порог установлен: {SPAM_THRESHOLD}")
+        
+        # Читаем текущий .env файл
+        env_path = os.path.join(os.path.dirname(__file__), '.env')
+        with open(env_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Обновляем или добавляем SPAM_THRESHOLD
+        threshold_line = f"SPAM_THRESHOLD={new_threshold}\n"
+        threshold_found = False
+        
+        for i, line in enumerate(lines):
+            if line.startswith('SPAM_THRESHOLD='):
+                lines[i] = threshold_line
+                threshold_found = True
+                break
+        
+        if not threshold_found:
+            lines.append(threshold_line)
+        
+        # Записываем обновленный .env файл
+        with open(env_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+
+        await message.reply(f"Новый порог установлен и сохранен: {SPAM_THRESHOLD}")
+        
     except (IndexError, ValueError):
         await message.reply("Использование: /set_threshold [число]")
     except Exception as e:
+        logger.error(f"Ошибка при установке порога: {str(e)}")
         await message.reply(f"Ошибка при установке порога: {str(e)}")
 
 # Команда /start

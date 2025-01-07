@@ -368,15 +368,25 @@ async def check_user(user_id: int) -> bool | Optional[str]:
 
 
 # Функция для чтения списка запрещенных слов из файла
-def get_keywords() -> List[str]:
-    """Читает список запрещенных слов из файла."""
+def get_keywords(chat_id: int = None) -> List[str]:
+    """
+    Читает список запрещенных слов.
+    Если указан chat_id, добавляет к общему списку слова конкретного чата.
+    """
     try:
+        # Получаем общий список слов
         with open("bad_words.txt", "r", encoding="utf-8") as f:
-            keywords = unidecode.unidecode(f.read().lower().replace(" ", "")).split(
-                "\n"
-            )
-        return keywords
-    except Exception:
+            keywords = unidecode.unidecode(f.read().lower().replace(" ", "")).split("\n")
+        
+        # Если указан chat_id, добавляем слова конкретного чата
+        if chat_id:
+            chat_keywords = db.get_chat_badwords(chat_id)
+            keywords.extend(chat_keywords)
+        
+        # Удаляем дубликаты и пустые строки
+        return list(filter(None, set(keywords)))
+    except Exception as e:
+        logger.error(f"Error reading keywords: {e}")
         return []
 
 
@@ -420,26 +430,17 @@ def get_special_patterns() -> List[str]:
     ]
 
 
-def search_keywords(text: str) -> bool:
+def search_keywords(text: str, chat_id: int = None) -> bool:
     """
     Ищет запрещенные слова и специальные символы в тексте.
-    Подсчитывает баллы на основе найденных слов и символов.
-
-    Args:
-        text: Анализируемый текст сообщения
-
-    Returns:
-        bool: True если количество баллов превышает порог
-
-    Raises:
-        ValueError: Если текст пустой или None
+    Учитывает слова конкретного чата, если указан chat_id.
     """
     if not text or not isinstance(text, str):
         raise ValueError("Текст должен быть непустой строкой")
 
     try:
         score = 0
-        keywords = get_keywords() or ["слово"]
+        keywords = get_keywords(chat_id) or ["слово"]
 
         # Преобразуем текст и ищем ключевые слова
         normalized_text = unidecode.unidecode(text.lower())
@@ -659,19 +660,24 @@ async def main(client: Client, message: Message) -> None:
         if waiting_for_word[message.from_user.id]:
             # Добавляем слово в файл
             word = message.text.strip()
-            with open("bad_words.txt", "a", encoding="utf-8") as f:
-                f.write(f"\n{unidecode.unidecode(word.lower())}")
+            chat_id = message.chat.id
+            
+            # Добавляем слово в базу данных для конкретного чата
+            success = db.add_chat_badword(chat_id, word, message.from_user.id)
             
             # Сбрасываем состояние ожидания
             waiting_for_word[message.from_user.id] = False
             
-            # Отправляем подтверждение
-            keywords = get_keywords()
-            await message.reply(
-                f"✅ Слово '{word}' добавлено в список запрещенных!\n\n"
-                f"Текущий список запрещенных слов:\n`{', '.join(keywords)}`",
-                reply_markup=filter_settings_markup
-            )
+            if success:
+                # Получаем обновленный список слов для этого чата
+                keywords = get_keywords(chat_id)
+                await message.reply(
+                    f"✅ Слово '{word}' добавлено в список запрещенных для этого чата!\n\n"
+                    f"Текущий список запрещенных слов:\n`{', '.join(keywords)}`",
+                    reply_markup=filter_settings_markup
+                )
+            else:
+                await message.reply("❌ Ошибка при добавлении слова")
             return
 
         if not message.text:
@@ -691,7 +697,7 @@ async def main(client: Client, message: Message) -> None:
         )
 
         # Проверяем наличие спама
-        is_spam = search_keywords(text)
+        is_spam = search_keywords(text, message.chat.id)
 
         # Сохраняем сообщение в БД
         db.add_message(message.chat.id, message.from_user.id, text, is_spam)

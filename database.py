@@ -41,6 +41,18 @@ class Database:
             last_updated TIMESTAMP
         )""")
 
+        # Добавляем таблицу для хранения запрещенных слов по чатам
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_badwords (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER,
+            word TEXT,
+            added_by INTEGER,
+            added_at TIMESTAMP,
+            FOREIGN KEY (chat_id) REFERENCES channels (chat_id),
+            UNIQUE(chat_id, word)
+        )""")
+        
         self.connection.commit()
 
     def update_stats(
@@ -111,3 +123,26 @@ class Database:
             (chat_id, user_id, message_text, datetime.now(), is_spam),
         )
         self.connection.commit()
+
+    def add_chat_badword(self, chat_id: int, word: str, added_by: int) -> bool:
+        """Добавляет запрещенное слово для конкретного чата"""
+        try:
+            self.cursor.execute(
+                """
+                INSERT OR IGNORE INTO chat_badwords (chat_id, word, added_by, added_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (chat_id, word.lower(), added_by, datetime.now())
+            )
+            self.connection.commit()
+            return True
+        except sqlite3.Error:
+            return False
+
+    def get_chat_badwords(self, chat_id: int) -> list[str]:
+        """Получает список запрещенных слов для конкретного чата"""
+        self.cursor.execute(
+            "SELECT word FROM chat_badwords WHERE chat_id = ?",
+            (chat_id,)
+        )
+        return [row[0] for row in self.cursor.fetchall()]

@@ -667,7 +667,21 @@ async def main(client: Client, message: Message) -> None:
             
             # Сбрасываем состояние ожидания
             waiting_for_word[message.from_user.id] = False
-            
+            filter_settings_markup = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "🔍 Добавить запрещенное слово", callback_data="add_badword"
+                        )
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            "🗑 Удалить запрещенное слово", callback_data="remove_badword"
+                        )
+                    ],
+                    [InlineKeyboardButton("◀️ Назад", callback_data="settings")],
+                ]
+            )
             if success:
                 # Получаем обновленный список слов для этого чата
                 keywords = get_keywords(chat_id)

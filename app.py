@@ -86,17 +86,52 @@ async def menu_command(client, message):
     await message.reply_text(
         "🔧 Главное меню настроек бота:", reply_markup=get_main_menu()
     )
+@bot.on_callback_query(filters.regex(r"ban_user_(\d+)_(\d+)"))
+async def ban_user_callback(client: Client, callback_query: CallbackQuery):
+        callback_query.data = callback_query.data.replace("ban_user_", "")
+        msg_id = int(callback_query.data.split("_")[1])
+        user_id = int(callback_query.data.split("_")[0])
+        chat_id = callback_query.message.chat.id
+        chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
+        target = await client.get_chat_member(chat_id, user_id)
+        # Проверяем, является ли пользователь администратором
+        if not await check_is_admin_callback(client, callback_query):
+            return
+    
+        if (
+            not chat_member.privileges.can_delete_messages
+            and not chat_member.privileges.can_restrict_members
+        ):
+            await callback_query.answer(
+                "У вас нет прав для выполнения этого действия!", show_alert=True
+            )
+            return
+    
+        # Баним пользователя, если его ID не равен исключенному
+        if user_id != 5957115070:
+            if target.status.value in ["administrator", "owner"]:
+                await callback_query.answer(
+                    "Цель является администратором, не могу забанить(", show_alert=True
+                )
+                return
+            else:
+                await client.ban_chat_member(chat_id, user_id)
+                db.update_stats(chat_id, banned=True)
+        else:
+            await callback_query.answer(
+                "Ты уверен что себя хочешь забанить?", show_alert=True
+            )
+            return
+    
+        await callback_query.answer("Забанен!", show_alert=True)
+        await client.delete_messages(chat_id, [msg_id, callback_query.message.id])
 
 
 @bot.on_callback_query()
 async def callback_query(client, callback_query: CallbackQuery):
     data = callback_query.data
 
-    if data == "close":
-        await callback_query.message.delete()
-        await callback_query.message.reply_to_message.delete()
-
-    elif data == "stats":
+    if data == "stats":
         # Получаем статистику
         stats = db.get_stats(callback_query.message.chat.id)
         await callback_query.message.reply(
@@ -106,7 +141,35 @@ async def callback_query(client, callback_query: CallbackQuery):
             f"Всего пользователей: {stats[2]}\n"
             f"Заблокировано: {stats[3]}"
         )
+    
+    elif data == 'cancel':
+        chat_id = callback_query.message.chat.id
+        chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
+        if chat_member.status.value in ["administrator", "owner"]:
+            await callback_query.message.delete()
+        else:
+            await callback_query.answer(
+                "Вы не являетесь администратором или основателем!", show_alert=True
+            )    
+    elif data == "delete":
+        # Проверка прав администратора
+        if not await check_is_admin_callback(client, callback_query):
+            await callback_query.answer(
+                "У вас нет прав для выполнения этого действия!", show_alert=True
+            )
+            return
 
+        # Удаление сообщенийF
+        messages_to_delete = [
+            callback_query.message.reply_to_message.id,
+            callback_query.message.id,
+        ]
+
+        await client.delete_messages(callback_query.message.chat.id, messages_to_delete)
+        db.update_stats(callback_query.message.chat.id, deleted=True)
+        logger.info(
+            f"Messages {messages_to_delete} deleted in chat {callback_query.message.chat.id}"
+        )
     elif data == "settings":
         settings_markup = InlineKeyboardMarkup(
             [
@@ -395,24 +458,7 @@ async def check_command(client: Client, message: Message) -> None:
 @bot.on_callback_query(filters.regex(r"delete"))
 async def delete(client: Client, callback_query: CallbackQuery):
     try:
-        # Проверка прав администратора
-        if not await check_is_admin_callback(client, callback_query):
-            await callback_query.answer(
-                "У вас нет прав для выполнения этого действия!", show_alert=True
-            )
-            return
-
-        # Удаление сообщений
-        messages_to_delete = [
-            callback_query.message.reply_to_message.id,
-            callback_query.message.id,
-        ]
-
-        await client.delete_messages(callback_query.message.chat.id, messages_to_delete)
-        db.update_stats(callback_query.message.chat.id, deleted=True)
-        logger.info(
-            f"Messages {messages_to_delete} deleted in chat {callback_query.message.chat.id}"
-        )
+        
 
     except Exception as e:
         logger.error(f"Error deleting messages: {e}")
@@ -421,14 +467,7 @@ async def delete(client: Client, callback_query: CallbackQuery):
 
 @bot.on_callback_query(filters.regex(r"cancel"))
 async def cancel(client: Client, callback_query: CallbackQuery):
-    chat_id = callback_query.message.chat.id
-    chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
-    if chat_member.status.value in ["administrator", "owner"]:
-        await callback_query.message.delete()
-    else:
-        await callback_query.answer(
-            "Вы не являетесь администратором или основателем!", show_alert=True
-        )
+    
 
 
 async def check_is_admin(client: Client, message: Message) -> bool:
@@ -460,46 +499,10 @@ async def check_is_admin_callback(
 
 
 # Бан пользователя по кнопке
-@bot.on_callback_query(filters.regex(r"ban_user_(\d+)_(\d+)"))
+@bot.on_callback_query()
 async def check_admin_or_moderator(client: Client, callback_query: CallbackQuery):
     try:
-        callback_query.data = callback_query.data.replace("ban_user_", "")
-        msg_id = int(callback_query.data.split("_")[1])
-        user_id = int(callback_query.data.split("_")[0])
-        chat_id = callback_query.message.chat.id
-        chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
-        target = await client.get_chat_member(chat_id, user_id)
-        # Проверяем, является ли пользователь администратором
-        if not await check_is_admin_callback(client, callback_query):
-            return
-
-        if (
-            not chat_member.privileges.can_delete_messages
-            and not chat_member.privileges.can_restrict_members
-        ):
-            await callback_query.answer(
-                "У вас нет прав для выполнения этого действия!", show_alert=True
-            )
-            return
-
-        # Баним пользователя, если его ID не равен исключенному
-        if user_id != 5957115070:
-            if not await check_is_admin_callback(client, callback_query):
-                return
-            else:
-                await client.ban_chat_member(chat_id, user_id)
-                db.update_stats(chat_id, banned=True)
-        else:
-            await callback_query.answer(
-                "Ты уверен что себя хочешь забанить?", show_alert=True
-            )
-            return
-
-        await callback_query.answer("Забанен!", show_alert=True)
-        await client.delete_messages(chat_id, [msg_id, callback_query.message.id])
-
-        with open("ban_sentenses.txt", "a", encoding="utf-8") as f:
-            f.write(callback_query.message.reply_to_message.text + "\n")
+        
     except Exception as e:
         await callback_query.answer(f"Ошибка при бане: {e}", show_alert=True)
 

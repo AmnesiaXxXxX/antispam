@@ -65,6 +65,8 @@ bot = Client(
     bot_token=bot_token,
 )
 
+# Добавляем после импортов
+SPAM_THRESHOLD = 3  # Порог по умолчанию
 
 # Функция для проверки пользователя через FunStat API
 async def check_user(user_id: int) -> bool | Optional[str]:
@@ -167,12 +169,13 @@ def get_special_patterns() -> List[str]:
 def search_keywords(text: str) -> bool:
     """
     Ищет запрещенные слова и специальные символы в тексте.
+    Подсчитывает баллы на основе найденных слов и символов.
 
     Args:
         text: Анализируемый текст сообщения
 
     Returns:
-        bool: True если найдены запрещенные слова или специальные символы
+        bool: True если количество баллов превышает порог
 
     Raises:
         ValueError: Если текст пустой или None
@@ -181,26 +184,55 @@ def search_keywords(text: str) -> bool:
         raise ValueError("Текст должен быть непустой строкой")
 
     try:
-        # Получаем и кэшируем ключевые слова
+        score = 0
         keywords = get_keywords() or ["слово"]
 
         # Преобразуем текст и ищем ключевые слова
         normalized_text = unidecode.unidecode(text.lower())
         keyword_pattern = r"\b(" + "|".join(map(re.escape, keywords)) + r")\b"
         found_keywords = len(re.findall(keyword_pattern, normalized_text))
+        
+        # Добавляем баллы за найденные ключевые слова
+        score += found_keywords
 
-        # Если найдено больше одного ключевого слова, проверяем спец-символы
-        if found_keywords > 1:
-            for pattern in get_special_patterns():
-                if re.search(pattern, text):
-                    return True
+        # Проверяем спец-символы
+        special_chars_found = 0
+        for pattern in get_special_patterns():
+            if re.search(pattern, text):
+                special_chars_found += 1
+        
+        # Добавляем баллы за спец-символы
+        score += special_chars_found * 0.5
 
-        return found_keywords > 3
+        return score >= SPAM_THRESHOLD
 
     except Exception as e:
         logger.error(f"Ошибка при поиске ключевых слов: {str(e)}")
         return False
 
+@bot.on_message(filters.text & filters.command(["set_threshold"]))
+async def set_threshold(client: Client, message: Message):
+    """Команда для изменения порога спама."""
+    try:
+        # Проверяем права администратора
+        chat_member = await client.get_chat_member(message.chat.id, message.from_user.id)
+        if chat_member.status.value not in ["administrator", "owner"]:
+            await message.reply("Только администраторы могут менять порог!")
+            return
+
+        # Получаем новое значение порога
+        new_threshold = float(message.text.split()[1])
+        if new_threshold <= 0:
+            await message.reply("Порог должен быть положительным числом!")
+            return
+
+        global SPAM_THRESHOLD
+        SPAM_THRESHOLD = new_threshold
+        await message.reply(f"Новый порог установлен: {SPAM_THRESHOLD}")
+    except (IndexError, ValueError):
+        await message.reply("Использование: /set_threshold [число]")
+    except Exception as e:
+        await message.reply(f"Ошибка при установке порога: {str(e)}")
 
 # Команда /start
 @bot.on_message(filters.text & filters.command(["start"]))

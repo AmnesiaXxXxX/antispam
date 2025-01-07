@@ -1,22 +1,25 @@
+import asyncio
+import datetime
 import logging
 import os
 import re
-import datetime
-import asyncio
 import time
+from functools import lru_cache
+from logging.handlers import RotatingFileHandler
 from typing import List, Optional
+
+import aiohttp
+import unidecode
+from dotenv import load_dotenv
 from pyrogram import Client, filters  # type: ignore
 from pyrogram.types import (
-    Message,
+    CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    CallbackQuery,
+    Message,
 )
-import unidecode
-import aiohttp
-from dotenv import load_dotenv
-from logging.handlers import RotatingFileHandler
-from users import Users, User
+
+from users import User, Users
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -141,50 +144,61 @@ async def on_new_member(client: Client, message: Message):
             break
 
 
-# Функция для поиска запрещенных слов в тексте
+@lru_cache(maxsize=128)
+def get_special_patterns() -> List[str]:
+    """Возвращает список скомпилированных регулярных выражений для специальных символов."""
+    return [
+        r"[\u0400-\u04FF]",  # Кириллица
+        r"[\u0500-\u052F]",  # Расширенная кириллица
+        r"[\u2000-\u206F]",  # Знаки пунктуации
+        r"[\u0180-\u024F]",  # Расширенная латиница
+        r"[\u1D00-\u1D7F]",  # Фонетические расширения
+        r"[\u1E00-\u1EFF]",  # Дополнительная латиница
+        r"[\uFE00-\uFE0F]",  # Вариационные селекторы
+        r"[\u0300-\u036F]",  # Комбинируемые диакритические знаки
+        r"[\u1100-\u11FF]",  # Хангыль
+        r"[\u2600-\u26FF]",  # Различные символы
+        r"[\u2700-\u27BF]",  # Дополнительные символы
+        r"[\uFF00-\uFFEF]",  # Полноширинные формы
+        r"[\U0001F300-\U0001F9FF]",  # Эмодзи
+    ]
+
+
 def search_keywords(text: str) -> bool:
     """
     Ищет запрещенные слова и специальные символы в тексте.
-    
-    :param text: Текст сообщения.
-    :return: True, если найдены запрещенные слова или специальные символы.
+
+    Args:
+        text: Анализируемый текст сообщения
+
+    Returns:
+        bool: True если найдены запрещенные слова или специальные символы
+
+    Raises:
+        ValueError: Если текст пустой или None
     """
+    if not text or not isinstance(text, str):
+        raise ValueError("Текст должен быть непустой строкой")
+
     try:
-        # Проверка на спец-символы и кодировки
-        special_patterns = [
-            r'[\u0400-\u04FF]',  # Кириллица
-            r'[\u0500-\u052F]',  # Расширенная кириллица
-            r'[\u2000-\u206F]',  # Знаки пунктуации
-            r'[\u0180-\u024F]',  # Расширенная латиница
-            r'[\u1D00-\u1D7F]',  # Фонетические расширения
-            r'[\u1E00-\u1EFF]',  # Дополнительная латиница
-            r'[\uFE00-\uFE0F]',  # Вариационные селекторы
-            r'[\u0300-\u036F]',  # Комбинируемые диакритические знаки
-            r'[\u1100-\u11FF]',  # Хангыль
-            r'[\u2600-\u26FF]',  # Различные символы
-            r'[\u2700-\u27BF]',  # Дополнительные символы
-            r'[\uFF00-\uFFEF]',  # Полноширинные формы
-            r'[\U0001F300-\U0001F9FF]'  # Эмодзи
-        ]
-
-        # Проверка на спец-символы
-        
-
-        # Проверка на ключевые слова
+        # Получаем и кэшируем ключевые слова
         keywords = get_keywords() or ["слово"]
-        keyword_pattern = r"(" + "|".join(keywords) + r")"
-        found_keywords = [
-            match.group() for match in re.finditer(keyword_pattern, unidecode.unidecode(text), re.IGNORECASE)
-        ]
-        result = len(found_keywords)
-        
-        if result > 1:
-            for pattern in special_patterns:
+
+        # Преобразуем текст и ищем ключевые слова
+        normalized_text = unidecode.unidecode(text.lower())
+        keyword_pattern = r"\b(" + "|".join(map(re.escape, keywords)) + r")\b"
+        found_keywords = len(re.findall(keyword_pattern, normalized_text))
+
+        # Если найдено больше одного ключевого слова, проверяем спец-символы
+        if found_keywords > 1:
+            for pattern in get_special_patterns():
                 if re.search(pattern, text):
                     return True
-        return result > 3
 
-    except Exception:
+        return found_keywords > 3
+
+    except Exception as e:
+        logger.error(f"Ошибка при поиске ключевых слов: {str(e)}")
         return False
 
 
@@ -300,7 +314,6 @@ async def check_admin_or_moderator(client: Client, callback_query: CallbackQuery
                 "У вас нет прав для выполнения этого действия!", show_alert=True
             )
             return
-        
 
         # Баним пользователя, если его ID не равен исключенному
         if user_id != 5957115070:
@@ -309,23 +322,22 @@ async def check_admin_or_moderator(client: Client, callback_query: CallbackQuery
                     "Цель является администратором, не могу забанить(", show_alert=True
                 )
                 return
-            else: 
+            else:
                 await client.ban_chat_member(chat_id, user_id)
         else:
             await callback_query.answer(
                 "Ты уверен что себя хочешь забанить?", show_alert=True
             )
             return
-        
+
         await callback_query.answer("Забанен!", show_alert=True)
         await client.delete_messages(chat_id, [msg_id, callback_query.message.id])
-
 
         with open("ban_sentenses.txt", "a", encoding="utf-8") as f:
             f.write(callback_query.message.reply_to_message.text + "\n")
     except Exception as e:
         await callback_query.answer(f"Ошибка при бане: {e}", show_alert=True)
-    
+
 
 # Функция для создания кнопок с баном и отменой
 def ban_button(user_id: int, msg_id: int) -> InlineKeyboardMarkup:
@@ -360,7 +372,7 @@ async def add_autos(client: Client, message: Message):
     if message.from_user.status.value not in ["administrator", "owner"]:
         await message.reply("Вы не являетесь администратором или основателем!")
         return
-    
+
     autos = open("autos.txt", "r", encoding="utf-8").read().split("\n")
     if message.chat.id not in autos:
         autos.append(str(message.chat.id))
@@ -372,6 +384,7 @@ async def add_autos(client: Client, message: Message):
     await asyncio.sleep(15)
     await message.delete()
     await msg.delete()
+
 
 @bot.on_message(filters.text & filters.command(["remove_autoclean"]))
 async def remove_autos(client: Client, message: Message):

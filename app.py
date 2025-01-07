@@ -294,10 +294,6 @@ def search_keywords(text: str) -> bool:
 async def set_threshold(client: Client, message: Message):
     """Команда для изменения порога спама."""
     try:
-        # Проверяем права администратора
-        chat_member = await client.get_chat_member(
-            message.chat.id, message.from_user.id
-        )
         if not await check_is_admin(client, message):
             return
 
@@ -429,7 +425,7 @@ async def cancel(client: Client, callback_query: CallbackQuery):
         )
 
 
-async def check_is_admin(client: Client = bot, message: Message) -> bool:
+async def check_is_admin(client: Client, message: Message) -> bool:
     """
     Проверяет, что пользователь, отправивший сообщение, является админом или создателем.
     Если нет — отправляет ответ и возвращает False.
@@ -482,10 +478,7 @@ async def check_admin_or_moderator(client: Client, callback_query: CallbackQuery
 
         # Баним пользователя, если его ID не равен исключенному
         if user_id != 5957115070:
-            if target.status.value in ["administrator", "owner"]:
-                await callback_query.answer(
-                    "Цель является администратором, не могу забанить(", show_alert=True
-                )
+            if not await check_is_admin_callback(client, callback_query):
                 return
             else:
                 await client.ban_chat_member(chat_id, user_id)
@@ -535,9 +528,7 @@ async def get_autos(client: Client, message: Message):
 
 @bot.on_message(filters.text & filters.command(["autoclean"]))
 async def add_autos(client: Client, message: Message):
-    if message.from_user.status.value not in ["administrator", "owner"]:
-        await message.reply("Вы не являетесь администратором или основателем!")
-        await asyncio.sleep(10.0)
+    if not await check_is_admin(client, message):
         return
     autos = open("autos.txt", "r", encoding="utf-8").read().split("\n")
     if message.chat.id not in autos:

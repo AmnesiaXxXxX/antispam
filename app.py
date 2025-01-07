@@ -298,7 +298,7 @@ async def set_threshold(client: Client, message: Message):
         chat_member = await client.get_chat_member(
             message.chat.id, message.from_user.id
         )
-        if not await check_is_admin_callback(client):
+        if not await check_is_admin(client, message):
             return
 
         # Получаем новое значение порога
@@ -429,7 +429,7 @@ async def cancel(client: Client, callback_query: CallbackQuery):
         )
 
 
-async def check_is_admin(client: Client, message: Message) -> bool:
+async def check_is_admin(client: Client = bot, message: Message) -> bool:
     """
     Проверяет, что пользователь, отправивший сообщение, является админом или создателем.
     Если нет — отправляет ответ и возвращает False.

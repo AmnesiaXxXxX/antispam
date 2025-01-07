@@ -20,6 +20,7 @@ from pyrogram.types import (
     Message,
 )
 
+from collections import defaultdict
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -68,7 +69,7 @@ bot = Client(
 
 # Добавляем после импортов
 SPAM_THRESHOLD = float(os.getenv("SPAM_THRESHOLD", "3"))  # Порог по умолчанию
-
+waiting_for_word = defaultdict(bool)
 
 def get_main_menu():
     return InlineKeyboardMarkup(
@@ -299,6 +300,26 @@ async def callback_query(client, callback_query: CallbackQuery):
         )
         await callback_query.message.edit_text(
             "⚙️ Настройки фильтрации:", reply_markup=filter_settings_markup
+        )
+    
+    elif data == "add_badword":
+        if not await check_is_admin_callback(client, callback_query):
+            return
+            
+        waiting_for_word[callback_query.from_user.id] = True
+        await callback_query.message.edit_text(
+            "📝 Отправьте слово, которое хотите добавить в список запрещенных.\n"
+            "Для отмены нажмите кнопку ниже.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ Отмена", callback_data="cancel_add_word")]
+            ])
+        )
+    
+    elif data == "cancel_add_word":
+        waiting_for_word[callback_query.from_user.id] = False
+        await callback_query.message.edit_text(
+            "⚙️ Настройки фильтрации:", 
+            reply_markup=filter_settings_markup
         )
 
 
@@ -634,6 +655,25 @@ async def main(client: Client, message: Message) -> None:
     Если слова найдены, удаляет сообщение и логирует.
     """
     try:
+        # Проверяем, ожидается ли слово от этого пользователя
+        if waiting_for_word[message.from_user.id]:
+            # Добавляем слово в файл
+            word = message.text.strip()
+            with open("bad_words.txt", "a", encoding="utf-8") as f:
+                f.write(f"\n{unidecode.unidecode(word.lower())}")
+            
+            # Сбрасываем состояние ожидания
+            waiting_for_word[message.from_user.id] = False
+            
+            # Отправляем подтверждение
+            keywords = get_keywords()
+            await message.reply(
+                f"✅ Слово '{word}' добавлено в список запрещенных!\n\n"
+                f"Текущий список запрещенных слов:\n`{', '.join(keywords)}`",
+                reply_markup=filter_settings_markup
+            )
+            return
+
         if not message.text:
             return  # Если сообщение пустое, игнорируем его
 

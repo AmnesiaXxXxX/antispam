@@ -662,4 +662,4 @@ if __name__ == "__main__":
     logger.info(
         f"Total uptime {total_time if total_time < 3600 else int(total_time/60)} seconds. Bot stopped."
     )
-```
+

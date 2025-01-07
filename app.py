@@ -7,6 +7,7 @@ import time
 from functools import lru_cache
 from logging.handlers import RotatingFileHandler
 from typing import List, Optional
+from database import Database
 
 import aiohttp
 import unidecode
@@ -50,6 +51,7 @@ file_handler.setFormatter(formatter)
 
 # Добавляем обработчик к логгеру
 logger.addHandler(file_handler)
+db = Database("antispam.db")
 
 # Токены и ключи для работы с API
 token = os.getenv("TOKEN") or exit("TOKEN is not set")
@@ -67,6 +69,85 @@ bot = Client(
 
 # Добавляем после импортов
 SPAM_THRESHOLD = float(os.getenv("SPAM_THRESHOLD", "3"))  # Порог по умолчанию
+
+
+def get_main_menu():
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
+            [InlineKeyboardButton("⚙️ Настройки", callback_data="settings")],
+            [InlineKeyboardButton("📋 Список каналов", callback_data="channels_list")],
+            [InlineKeyboardButton("❌ Закрыть", callback_data="close")],
+        ]
+    )
+
+
+@bot.on_message(filters.command("menu"))
+async def menu_command(client, message):
+    await message.reply_text(
+        "🔧 Главное меню настроек бота:", reply_markup=get_main_menu()
+    )
+
+
+@bot.on_callback_query()
+async def callback_query(client, callback_query):
+    data = callback_query.data
+
+    if data == "close":
+        await callback_query.message.delete()
+
+    elif data == "stats":
+        # Получаем статистику
+        channels = db.get_all_channels()
+        stats_text = "📊 Статистика:\n\n"
+        stats_text += f"Всего каналов: {len(channels)}\n"
+        await callback_query.message.edit_text(
+            stats_text,
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("◀️ Назад", callback_data="back_to_main")]]
+            ),
+        )
+
+    elif data == "settings":
+        settings_markup = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "🔍 Настройки фильтрации", callback_data="filter_settings"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "⏰ Автоочистка", callback_data="autoclean_settings"
+                    )
+                ],
+                [InlineKeyboardButton("◀️ Назад", callback_data="back_to_main")],
+            ]
+        )
+        await callback_query.message.edit_text(
+            "⚙️ Настройки бота:", reply_markup=settings_markup
+        )
+
+    elif data == "channels_list":
+        channels = db.get_all_channels()
+        if not channels:
+            text = "Список каналов пуст"
+        else:
+            text = "📋 Список подключенных каналов:\n\n"
+            for chat_id, title in channels:
+                text += f"• {title} (ID: {chat_id})\n"
+
+        await callback_query.message.edit_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("◀️ Назад", callback_data="back_to_main")]]
+            ),
+        )
+
+    elif data == "back_to_main":
+        await callback_query.message.edit_text(
+            "🔧 Главное меню настроек бота:", reply_markup=get_main_menu()
+        )
 
 
 # Функция для проверки пользователя через FunStat API
@@ -221,7 +302,6 @@ async def set_threshold(client: Client, message: Message):
         if not await check_is_admin_callback(client):
             return
 
-
         # Получаем новое значение порога
         new_threshold = float(message.text.split()[1])
         if new_threshold <= 0:
@@ -349,6 +429,7 @@ async def cancel(client: Client, callback_query: CallbackQuery):
             "Вы не являетесь администратором или основателем!", show_alert=True
         )
 
+
 async def check_is_admin(client: Client, message: Message) -> bool:
     """
     Проверяет, что пользователь, отправивший сообщение, является админом или создателем.
@@ -360,8 +441,9 @@ async def check_is_admin(client: Client, message: Message) -> bool:
         return
 
 
-
-async def check_is_admin_callback(client: Client, callback_query: CallbackQuery) -> bool:
+async def check_is_admin_callback(
+    client: Client, callback_query: CallbackQuery
+) -> bool:
     """
     Проверяет, что пользователь, нажавший кнопку, является админом или создателем.
     Если нет — отправляет ответ и возвращает False.
@@ -369,13 +451,12 @@ async def check_is_admin_callback(client: Client, callback_query: CallbackQuery)
     chat_id = callback_query.message.chat.id
     chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
     if chat_member.status.value not in ["administrator", "owner"]:
-
         await callback_query.answer(
-            "Вы не являетесь администратором или основателем!",
-            show_alert=True
+            "Вы не являетесь администратором или основателем!", show_alert=True
         )
         return False
     return True
+
 
 # Бан пользователя по кнопке
 @bot.on_callback_query(filters.regex(r"ban_user_(\d+)_(\d+)"))
@@ -454,13 +535,9 @@ async def get_autos(client: Client, message: Message):
 
 @bot.on_message(filters.text & filters.command(["autoclean"]))
 async def add_autos(client: Client, message: Message):
-<<<<<<< HEAD
     if message.from_user.status.value not in ["administrator", "owner"]:
         await message.reply("Вы не являетесь администратором или основателем!")
         await asyncio.sleep(10.0)
-=======
-    if not await check_is_admin(client, message):
->>>>>>> 59a85ca8479b5074cbb6a3322309575f3d3532ae
         return
     autos = open("autos.txt", "r", encoding="utf-8").read().split("\n")
     if message.chat.id not in autos:
@@ -473,7 +550,6 @@ async def add_autos(client: Client, message: Message):
     await asyncio.sleep(15)
     await message.delete()
     await msg.delete()
-    
 
 
 @bot.on_message(filters.text & filters.command(["remove_autoclean"]))
@@ -493,35 +569,48 @@ async def main(client: Client, message: Message) -> None:
     Если слова найдены, удаляет сообщение и логирует.
     """
     try:
-        autos = open("autos.txt", "r", encoding="utf-8").read().split("\n")
-
         if not message.text:
             return  # Если сообщение пустое, игнорируем его
 
-        # Преобразуем текст в нормализованный вид
+        # Читаем список автомодерации
+        try:
+            with open("autos.txt", "r", encoding="utf-8") as f:
+                autos = f.read().splitlines()
+        except FileNotFoundError:
+            logger.error("File autos.txt not found")
+            autos = []
+
         text = message.text
         logger.info(
             f"Processing message from {message.from_user.id} in chat {message.chat.id}"
         )
-        # Проверяем наличие запрещенных слов
-        if search_keywords(text):
-            # Проверяем, является ли пользователь валидным
+
+        # Проверяем наличие спама
+        is_spam = search_keywords(text)
+
+        # Сохраняем сообщение в БД
+        db.add_message(message.chat.id, message.from_user.id, text, is_spam)
+
+        if is_spam:
+            # Проверяем валидность пользователя только если обнаружен спам
             is_user_valid = await check_user(message.from_user.id)
 
-            # Если пользователь не прошел проверку или является исключением, пропускаем его
+            # Пропускаем сообщения от доверенных пользователей
             if is_user_valid == "False" and message.from_user.id != 5957115070:
                 return
+
+            # Пересылаем сообщение в канал модерации
+            await message.forward("amnesiawho1")
+
+            # Проверяем режим автомодерации для чата
+            if str(message.chat.id) in autos:
+                await message.delete()
             else:
-                await message.forward("amnesiawho1")  # Пересылаем сообщение в канал
-            if str(message.chat.id) not in autos:
                 await message.reply(
                     "Подозрительное сообщение!",
                     reply_markup=ban_button(message.from_user.id, message.id),
                 )
-                return
-            else:
-                await message.delete()
-                return
+
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
 

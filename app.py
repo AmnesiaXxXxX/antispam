@@ -144,21 +144,32 @@ async def on_new_member(client: Client, message: Message):
 # Функция для поиска запрещенных слов в тексте
 def search_keywords(text: str) -> bool:
     """
-    Ищет запрещенные слова в тексте и возвращает True, если их больше 3.
-
+    Ищет запрещенные слова и специальные символы в тексте.
+    
     :param text: Текст сообщения.
-    :return: True, если найдено больше 3 запрещенных слов.
+    :return: True, если найдены запрещенные слова или специальные символы.
     """
     try:
-        keywords = get_keywords() or ["слово"]
-        pattern = r"(" + "|".join(keywords) + r")"
-
-        found_keywords = [
-            match.group() for match in re.finditer(pattern, text, re.IGNORECASE)
+        # Проверка на спец-символы и кодировки
+        special_patterns = [
+            r'[\u2600-\u26FF]',  # Различные символы и эмодзи
+            r'[\u2700-\u27BF]',  # Дополнительные символы
         ]
 
-        # Если найдено больше 3 запрещенных слов, возвращаем True
+        # Проверка на спец-символы
+        for pattern in special_patterns:
+            if re.search(pattern, text):
+                return True
+
+        # Проверка на ключевые слова
+        keywords = get_keywords() or ["слово"]
+        keyword_pattern = r"(" + "|".join(keywords) + r")"
+        found_keywords = [
+            match.group() for match in re.finditer(keyword_pattern, text, re.IGNORECASE)
+        ]
+
         return len(found_keywords) > 3
+
     except Exception:
         return False
 

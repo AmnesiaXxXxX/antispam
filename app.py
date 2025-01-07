@@ -75,7 +75,7 @@ def get_main_menu():
         [
             [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
             [InlineKeyboardButton("⚙️ Настройки", callback_data="settings")],
-            [InlineKeyboardButton("❌ Закрыть", callback_data="close")],
+            [InlineKeyboardButton("❌ Закрыть", callback_data="cancel")],
         ]
     )
 
@@ -260,7 +260,6 @@ async def callback_query(client, callback_query: CallbackQuery):
         else:
             autos.append(chat_id)
             status = "✅ Включена"
-            
 
         with open("autos.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(autos))
@@ -282,8 +281,25 @@ async def callback_query(client, callback_query: CallbackQuery):
             reply_markup=autoclean_markup,
         )
         await callback_query.answer(f"Автомодерация {status}!", show_alert=True)
-
-        
+    elif data == "filter_settings":
+        filter_settings_markup = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "🔍 Добавить запрещенное слово", callback_data="add_badword"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "🗑 Удалить запрещенное слово", callback_data="remove_badword"
+                    )
+                ],
+                [InlineKeyboardButton("◀️ Назад", callback_data="settings")],
+            ]
+        )
+        await callback_query.message.edit_text(
+            "⚙️ Настройки фильтрации:", reply_markup=filter_settings_markup
+        )
 
 
 # Функция для проверки пользователя через FunStat API

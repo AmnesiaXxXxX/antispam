@@ -33,7 +33,7 @@ class Database:
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS statistics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id INTEGER,
+            chat_id INTEGER UNIQUE,
             total_messages INTEGER DEFAULT 0,
             deleted_messages INTEGER DEFAULT 0,
             total_users INTEGER DEFAULT 0,

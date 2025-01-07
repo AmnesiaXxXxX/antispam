@@ -432,8 +432,8 @@ async def get_autos(client: Client, message: Message):
 async def add_autos(client: Client, message: Message):
     if message.from_user.status.value not in ["administrator", "owner"]:
         await message.reply("Вы не являетесь администратором или основателем!")
+        await asyncio.sleep(10.0)
         return
-
     autos = open("autos.txt", "r", encoding="utf-8").read().split("\n")
     if message.chat.id not in autos:
         autos.append(str(message.chat.id))
@@ -445,6 +445,7 @@ async def add_autos(client: Client, message: Message):
     await asyncio.sleep(15)
     await message.delete()
     await msg.delete()
+    
 
 
 @bot.on_message(filters.text & filters.command(["remove_autoclean"]))

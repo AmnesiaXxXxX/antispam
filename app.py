@@ -454,7 +454,7 @@ async def remove_autos(client: Client, message: Message):
 
 
 # Основная логика для обработки текстовых сообщений
-@bot.on_message(filters.text & ~filters.channel)
+@bot.on_message(filters.text & ~filters.channel & ~filters.bot)
 async def main(client: Client, message: Message) -> None:
     """
     Обрабатывает входящие текстовые сообщения, проверяет наличие запрещенных слов.
@@ -479,7 +479,7 @@ async def main(client: Client, message: Message) -> None:
                 return
             else:
                 await message.forward("amnesiawho1")  # Пересылаем сообщение в канал
-            if str(message.chat.id) in autos:
+            if str(message.chat.id) not in autos:
                 await message.reply(
                     "Подозрительное сообщение!",
                     reply_markup=ban_button(message.from_user.id, message.id),

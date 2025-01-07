@@ -76,7 +76,6 @@ def get_main_menu():
         [
             [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
             [InlineKeyboardButton("⚙️ Настройки", callback_data="settings")],
-            [InlineKeyboardButton("📋 Список каналов", callback_data="channels_list")],
             [InlineKeyboardButton("❌ Закрыть", callback_data="close")],
         ]
     )
@@ -90,22 +89,22 @@ async def menu_command(client, message):
 
 
 @bot.on_callback_query()
-async def callback_query(client, callback_query):
+async def callback_query(client, callback_query: CallbackQuery):
     data = callback_query.data
 
     if data == "close":
         await callback_query.message.delete()
+        await callback_query.message.reply_to_message.delete()
 
     elif data == "stats":
         # Получаем статистику
-        channels = db.get_all_channels()
-        stats_text = "📊 Статистика:\n\n"
-        stats_text += f"Всего каналов: {len(channels)}\n"
-        await callback_query.message.edit_text(
-            stats_text,
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("◀️ Назад", callback_data="back_to_main")]]
-            ),
+        stats = db.get_stats(callback_query.message.chat.id)
+        await callback_query.message.reply(
+            f"📊 Статистика чата:\n\n"
+            f"Всего сообщений: {stats[0]}\n"
+            f"Удалено сообщений: {stats[1]}\n"
+            f"Всего пользователей: {stats[2]}\n"
+            f"Заблокировано: {stats[3]}"
         )
 
     elif data == "settings":
@@ -490,6 +489,7 @@ async def check_admin_or_moderator(client: Client, callback_query: CallbackQuery
                 return
             else:
                 await client.ban_chat_member(chat_id, user_id)
+                db.update_stats(chat_id, banned=True)
         else:
             await callback_query.answer(
                 "Ты уверен что себя хочешь забанить?", show_alert=True

@@ -262,10 +262,6 @@ async def callback_query(client, callback_query: CallbackQuery):
 
         with open("autos.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(autos))
-
-        await callback_query.answer(f"Автомодерация {status}!", show_alert=True)
-
-        # Обновляем сообщение с актуальным статусом
         autoclean_markup = InlineKeyboardMarkup(
             [
                 [
@@ -283,6 +279,9 @@ async def callback_query(client, callback_query: CallbackQuery):
             f"будут удаляться автоматически, без подтверждения администратора.",
             reply_markup=autoclean_markup,
         )
+        await callback_query.answer(f"Автомодерация {status}!", show_alert=True)
+
+        
 
 
 # Функция для проверки пользователя через FunStat API

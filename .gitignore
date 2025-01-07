@@ -5,3 +5,4 @@ antispam.*
 *.session-journal
 *.db
 *.txt
+__pycache__/

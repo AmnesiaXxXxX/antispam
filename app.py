@@ -68,6 +68,7 @@ bot = Client(
 # Добавляем после импортов
 SPAM_THRESHOLD = float(os.getenv("SPAM_THRESHOLD", "3"))  # Порог по умолчанию
 
+
 # Функция для проверки пользователя через FunStat API
 async def check_user(user_id: int) -> bool | Optional[str]:
     """
@@ -191,7 +192,7 @@ def search_keywords(text: str) -> bool:
         normalized_text = unidecode.unidecode(text.lower())
         keyword_pattern = r"\b(" + "|".join(map(re.escape, keywords)) + r")\b"
         found_keywords = len(re.findall(keyword_pattern, normalized_text))
-        
+
         # Добавляем баллы за найденные ключевые слова
         score += found_keywords
 
@@ -200,7 +201,7 @@ def search_keywords(text: str) -> bool:
         for pattern in get_special_patterns():
             if re.search(pattern, text):
                 special_chars_found += 1
-        
+
         # Добавляем баллы за спец-символы
         score += special_chars_found * 0.5
 
@@ -210,12 +211,15 @@ def search_keywords(text: str) -> bool:
         logger.error(f"Ошибка при поиске ключевых слов: {str(e)}")
         return False
 
+
 @bot.on_message(filters.text & filters.command("set_threshold"))
 async def set_threshold(client: Client, message: Message):
     """Команда для изменения порога спама."""
     try:
         # Проверяем права администратора
-        chat_member = await client.get_chat_member(message.chat.id, message.from_user.id)
+        chat_member = await client.get_chat_member(
+            message.chat.id, message.from_user.id
+        )
         if chat_member.status.value not in ["administrator", "owner"]:
             await message.reply("Только администраторы могут менять порог!")
             return
@@ -229,36 +233,37 @@ async def set_threshold(client: Client, message: Message):
         # Обновляем значение в памяти
         global SPAM_THRESHOLD
         SPAM_THRESHOLD = new_threshold
-        
+
         # Читаем текущий .env файл
-        env_path = os.path.join(os.path.dirname(__file__), '.env')
-        with open(env_path, 'r', encoding='utf-8') as f:
+        env_path = os.path.join(os.path.dirname(__file__), ".env")
+        with open(env_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
-        
+
         # Обновляем или добавляем SPAM_THRESHOLD
         threshold_line = f"SPAM_THRESHOLD={new_threshold}\n"
         threshold_found = False
-        
+
         for i, line in enumerate(lines):
-            if line.startswith('SPAM_THRESHOLD='):
+            if line.startswith("SPAM_THRESHOLD="):
                 lines[i] = threshold_line
                 threshold_found = True
                 break
-        
+
         if not threshold_found:
             lines.append(threshold_line)
-        
+
         # Записываем обновленный .env файл
-        with open(env_path, 'w', encoding='utf-8') as f:
+        with open(env_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
 
         await message.reply(f"Новый порог установлен и сохранен: {SPAM_THRESHOLD}")
-        
+
     except (IndexError, ValueError):
         await message.reply("Использование: /set_threshold [число]")
     except Exception as e:
         logger.error(f"Ошибка при установке порога: {str(e)}")
         await message.reply(f"Ошибка при установке порога: {str(e)}")
+
 
 # Команда /start
 @bot.on_message(filters.text & filters.command(["start"]))
@@ -468,7 +473,9 @@ async def main(client: Client, message: Message) -> None:
 
         # Преобразуем текст в нормализованный вид
         text = message.text
-        logger.info(f"Processing message from {message.from_user.id} in chat {message.chat.id}")
+        logger.info(
+            f"Processing message from {message.from_user.id} in chat {message.chat.id}"
+        )
         # Проверяем наличие запрещенных слов
         if search_keywords(text):
             # Проверяем, является ли пользователь валидным
@@ -485,7 +492,9 @@ async def main(client: Client, message: Message) -> None:
                     reply_markup=ban_button(message.from_user.id, message.id),
                 )
                 return
-            await message.delete()
+            else:
+                await message.delete()
+                return
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
 

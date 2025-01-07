@@ -20,7 +20,6 @@ from pyrogram.types import (
     Message,
 )
 
-from users import User, Users
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -262,7 +261,13 @@ async def callback_query(client, callback_query: CallbackQuery):
             f.write("\n".join(autos))
             
         await callback_query.answer(f"Автомодерация {status}!", show_alert=True)
-        
+        await callback_query.message.edit_text(
+            f"⚙️ Настройки автомодерации\n\n"
+            f"Текущий статус: {status}\n\n"
+            f"При включенной автомодерации подозрительные сообщения "
+            f"будут удаляться автоматически, без подтверждения администратора.",
+            reply_markup=autoclean_markup
+        )
         # Обновляем сообщение с актуальным статусом
         await callback_query.message.edit_reply_markup(
             InlineKeyboardMarkup([

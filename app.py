@@ -152,23 +152,37 @@ def search_keywords(text: str) -> bool:
     try:
         # Проверка на спец-символы и кодировки
         special_patterns = [
-            r'[\u2600-\u26FF]',  # Различные символы и эмодзи
+            r'[\u0400-\u04FF]',  # Кириллица
+            r'[\u0500-\u052F]',  # Расширенная кириллица
+            r'[\u2000-\u206F]',  # Знаки пунктуации
+            r'[\u0180-\u024F]',  # Расширенная латиница
+            r'[\u1D00-\u1D7F]',  # Фонетические расширения
+            r'[\u1E00-\u1EFF]',  # Дополнительная латиница
+            r'[\uFE00-\uFE0F]',  # Вариационные селекторы
+            r'[\u0300-\u036F]',  # Комбинируемые диакритические знаки
+            r'[\u1100-\u11FF]',  # Хангыль
+            r'[\u2600-\u26FF]',  # Различные символы
             r'[\u2700-\u27BF]',  # Дополнительные символы
+            r'[\uFF00-\uFFEF]',  # Полноширинные формы
+            r'[\U0001F300-\U0001F9FF]'  # Эмодзи
         ]
 
         # Проверка на спец-символы
-        for pattern in special_patterns:
-            if re.search(pattern, text):
-                return True
+        
 
         # Проверка на ключевые слова
         keywords = get_keywords() or ["слово"]
         keyword_pattern = r"(" + "|".join(keywords) + r")"
         found_keywords = [
-            match.group() for match in re.finditer(keyword_pattern, text, re.IGNORECASE)
+            match.group() for match in re.finditer(keyword_pattern, unidecode.unidecode(text), re.IGNORECASE)
         ]
-
-        return len(found_keywords) > 3
+        result = len(found_keywords)
+        
+        if result > 1:
+            for pattern in special_patterns:
+                if re.search(pattern, text):
+                    return True
+        return result > 3
 
     except Exception:
         return False
@@ -382,7 +396,7 @@ async def main(client: Client, message: Message) -> None:
             return  # Если сообщение пустое, игнорируем его
 
         # Преобразуем текст в нормализованный вид
-        text = unidecode.unidecode(message.text)
+        text = message.text
 
         # Проверяем наличие запрещенных слов
         if search_keywords(text):

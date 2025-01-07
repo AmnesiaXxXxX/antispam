@@ -30,7 +30,7 @@ class Database:
             is_spam BOOLEAN,
             FOREIGN KEY (chat_id) REFERENCES channels (chat_id)
         )""")
-        self.cursor.execute('''
+        self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS statistics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chat_id INTEGER,
@@ -39,16 +39,20 @@ class Database:
             total_users INTEGER DEFAULT 0,
             banned_users INTEGER DEFAULT 0,
             last_updated TIMESTAMP
-        )''')
-        
+        )""")
+
         self.connection.commit()
 
-    def update_stats(self, chat_id: int, 
-                    messages: bool = False, 
-                    deleted: bool = False,
-                    users: bool = False,
-                    banned: bool = False):
-        self.cursor.execute('''
+    def update_stats(
+        self,
+        chat_id: int,
+        messages: bool = False,
+        deleted: bool = False,
+        users: bool = False,
+        banned: bool = False,
+    ):
+        self.cursor.execute(
+            """
         INSERT INTO statistics (chat_id, total_messages, deleted_messages, 
                               total_users, banned_users, last_updated)
         VALUES (?, 0, 0, 0, 0, CURRENT_TIMESTAMP)
@@ -58,22 +62,29 @@ class Database:
             total_users = total_users + ?,
             banned_users = banned_users + ?,
             last_updated = CURRENT_TIMESTAMP
-        ''', (chat_id, 
-              1 if messages else 0,
-              1 if deleted else 0,
-              1 if users else 0,
-              1 if banned else 0))
+        """,
+            (
+                chat_id,
+                1 if messages else 0,
+                1 if deleted else 0,
+                1 if users else 0,
+                1 if banned else 0,
+            ),
+        )
         self.connection.commit()
-    
+
     def get_stats(self, chat_id: int):
-        self.cursor.execute('''
+        self.cursor.execute(
+            """
         SELECT total_messages, deleted_messages, 
                total_users, banned_users 
         FROM statistics 
         WHERE chat_id = ?
-        ''', (chat_id,))
+        """,
+            (chat_id,),
+        )
         return self.cursor.fetchone() or (0, 0, 0, 0)
-    
+
     def add_channel(self, chat_id: int, title: str):
         self.cursor.execute(
             "INSERT OR IGNORE INTO channels (chat_id, title, join_date) VALUES (?, ?, ?)",

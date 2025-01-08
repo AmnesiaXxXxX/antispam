@@ -221,43 +221,38 @@ async def delete_word_handler(client: Client, callback_query: CallbackQuery):
 
 @bot.on_callback_query(filters.regex(r"ban_user_(\d+)_(\d+)"))
 async def ban_user_callback(client: Client, callback_query: CallbackQuery):
-    callback_query.data = callback_query.data.replace("ban_user_", "")
-    msg_id = int(callback_query.data.split("_")[1])
-    user_id = int(callback_query.data.split("_")[0])
-    chat_id = callback_query.message.chat.id
-    chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
-    target = await client.get_chat_member(chat_id, user_id)
-    # Проверяем, является ли пользователь администратором
-    if not await check_is_admin_callback(client, callback_query):
-        return
+    try:
+        callback_query.data = callback_query.data.replace("ban_user_", "")
+        msg_id = int(callback_query.data.split("_")[1])
+        user_id = int(callback_query.data.split("_")[0])
+        chat_id = callback_query.message.chat.id
+        target = await client.get_chat_member(chat_id, user_id)
 
-    if (
-        not chat_member.privileges.can_delete_messages
-        and not chat_member.privileges.can_restrict_members
-    ):
-        await callback_query.answer(
-            "У вас нет прав для выполнения этого действия!", show_alert=True
-        )
-        return
+        # Проверяем, является ли пользователь администратором
+        if not await check_is_admin_callback(client, callback_query):
+            return
 
-    # Баним пользователя, если его ID не равен исключенному
-    if user_id != 5957115070:
-        if target.status.value in ["administrator", "owner"]:
+        # Баним пользователя, если его ID не равен исключенному
+        if user_id != 5957115070:
+            if target.status.value in ["administrator", "owner"]:
+                await callback_query.answer(
+                    "Цель является администратором, не могу забанить(", show_alert=True
+                )
+                return
+            else:
+                await client.ban_chat_member(chat_id, user_id)
+                db.update_stats(chat_id, banned=True)
+        else:
             await callback_query.answer(
-                "Цель является администратором, не могу забанить(", show_alert=True
+                "Ты уверен что себя хочешь забанить?", show_alert=True
             )
             return
-        else:
-            await client.ban_chat_member(chat_id, user_id)
-            db.update_stats(chat_id, banned=True)
-    else:
-        await callback_query.answer(
-            "Ты уверен что себя хочешь забанить?", show_alert=True
-        )
-        return
 
-    await callback_query.answer("Забанен!", show_alert=True)
-    await client.delete_messages(chat_id, [msg_id, callback_query.message.id])
+        await callback_query.answer("Забанен!", show_alert=True)
+        await client.delete_messages(chat_id, [msg_id, callback_query.message.id])
+    except Exception as e:
+        logger.error(f"Error banning user: {e}")
+        await callback_query.answer("Ошибка при попытке забанить пользователя", show_alert=True)
 
 
 @bot.on_callback_query()
@@ -889,14 +884,12 @@ async def main(client: Client, message: Message) -> None:
             username=message.from_user.username if message.from_user.username else None,
         )
         if is_spam:
-            # Проверяем валидность пользователя только если обнаружен спам
             is_user_valid = await check_user(message.from_user.id)
 
             # Пропускаем сообщения от доверенных пользователей
             if is_user_valid == "False" and message.from_user.id != 5957115070:
                 return
 
-            # Пересылаем сообщение в канал модерации
             await message.forward("amnesiawho1")
 
             # Проверяем режим автомодерации для чата
@@ -915,21 +908,6 @@ async def main(client: Client, message: Message) -> None:
         logger.exception(f"Error processing message: {e}")
 
 
-async def process_new_user(message: Message, user: User) -> bool:
-    """Обработка нового пользователя"""
-    user_data = {
-        "first_name": user.first_name,
-        "username": user.username,
-        "first_msg_date": str(datetime.datetime.now()),
-    }
-
-    success = db.add_verified_user(user.id, user_data)
-    if not success:
-        logger.error(f"Failed to add user {user.id} to verified users")
-        return False
-
-    db.update_stats(message.chat.id, users=True)
-    return True
 
 
 # Запуск бота

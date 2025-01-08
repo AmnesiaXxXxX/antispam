@@ -130,8 +130,16 @@ class Database:
 
     def add_chat_badword(self, chat_id: int, word: str, added_by: int) -> bool:
         """Добавляет запрещенное слово для конкретного чата"""
+        def is_regex_pattern(s):
+            try:
+                re.compile(s)
+                return True
+            except re.error:
+                return False
+        # Заменить строку:
         word = unidecode.unidecode(word.lower())
-        word = re.compile(re.escape(word), re.IGNORECASE)
+        if not is_regex_pattern(word):
+            word = re.escape(word)
         try:
             
             self.cursor.execute(

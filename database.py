@@ -13,10 +13,12 @@ class Database:
         self.create_tables()
         
     def create_tables(self):
-        # Таблица для проверенных пользователей (перемещаем в начало, так как на неё будут ссылаться другие таблицы)
+        # Обновленная таблица verified_users с новыми полями
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS verified_users (
             user_id INTEGER PRIMARY KEY,
+            first_name TEXT,
+            username TEXT,
             verified_at TIMESTAMP,
             first_message_date TEXT,
             messages_count INTEGER,
@@ -185,10 +187,13 @@ class Database:
         try:
             self.cursor.execute("""
             INSERT OR REPLACE INTO verified_users 
-            (user_id, verified_at, first_message_date, messages_count, chats_count)
-            VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?)
+            (user_id, first_name, username, verified_at, first_message_date, 
+             messages_count, chats_count)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
             """, (
                 user_id,
+                user_data.get('first_name', ''),
+                user_data.get('username', ''),
                 user_data.get('first_msg_date'),
                 user_data.get('messages_count', 0),
                 user_data.get('chats_count', 0)

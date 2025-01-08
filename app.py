@@ -890,6 +890,33 @@ async def main(client: Client, message: Message) -> None:
         logger.exception(f"Error processing message: {e}")
 
 
+async def process_new_user(message: types.Message, user: types.User) -> bool:
+    """Обработка нового пользователя"""
+    user_data = {
+        'first_name': user.first_name,
+        'username': user.username,
+        'first_msg_date': str(datetime.now()),
+        'messages_count': 0,
+        'chats_count': 1
+    }
+    
+    success = db.add_verified_user(user.id, user_data)
+    if not success:
+        logger.error(f"Failed to add user {user.id} to verified users")
+        return False
+        
+    db.update_stats(message.chat.id, users=True)
+    return True
+
+@dp.message_handler()
+async def handle_message(message: types.Message):
+    """Обработчик всех сообщений"""
+    if not db.is_user_verified(message.from_user.id):
+        await process_new_user(message, message.from_user)
+    
+    # ...existing code...
+
+
 # Запуск бота
 if __name__ == "__main__":
     start_time = time.time()  # Засекаем время старта бота

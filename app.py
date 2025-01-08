@@ -59,6 +59,49 @@ bot_token = os.getenv("BOT_TOKEN") or exit("BOT_TOKEN is not set")
 api_id = os.getenv("API_ID") or exit("API_ID is not set")
 api_hash = os.getenv("API_HASH") or exit("API_HASH is not set")
 
+START_MESSAGE = """🤖 AntiSpam Bot - Защита чатов от спама и нежелательного контента
+📋 Основные возможности:
+🛡️ Защита от спама
+Автоматическое обнаружение подозрительных сообщений
+Фильтрация по ключевым словам
+Защита от специальных символов
+Проверка новых пользователей через FunStat API
+👮 Модерация
+Автоматическое или ручное удаление спама
+Возможность бана нарушителей
+Пересылка подозрительных сообщений в канал модерации
+Гибкая настройка автомодерации для каждого чата
+⚙️ Настройки
+Управление через удобное меню с кнопками
+Настройка порога чувствительности фильтров
+Добавление/удаление запрещенных слов
+Включение/отключение автомодерации
+📊 Статистика
+Отслеживание количества сообщений
+Подсчет удаленных сообщений
+Статистика по пользователям
+История банов
+🗄️ База данных
+SQLite для хранения данных
+Отдельные таблицы для каналов, сообщений и статистики
+Сохранение настроек для каждого чата
+Список запрещенных слов по чатам
+📝 Логирование
+Ротация логов
+Детальное логирование действий
+Отслеживание ошибок
+Сохранение истории операций
+🔒 Безопасность
+Проверка прав администратора
+Защита команд управления
+Сохранение конфиденциальных данных в .env файле
+Исключение ложных срабатываний
+🛠️ Технические особенности:
+Асинхронная работа через Pyrogram
+Интеграция с внешними API
+Кэширование данных
+Оптимизированные алгоритмы фильтрации"""
+
 # Инициализация бота с использованием токенов
 bot = Client(
     "bot",
@@ -70,6 +113,7 @@ bot = Client(
 # Добавляем после импортов
 SPAM_THRESHOLD = float(os.getenv("SPAM_THRESHOLD", "3"))  # Порог по умолчанию
 waiting_for_word = defaultdict(bool)
+
 
 def get_main_menu():
     return InlineKeyboardMarkup(
@@ -301,25 +345,24 @@ async def callback_query(client, callback_query: CallbackQuery):
         await callback_query.message.edit_text(
             "⚙️ Настройки фильтрации:", reply_markup=filter_settings_markup
         )
-    
+
     elif data == "add_badword":
         if not await check_is_admin_callback(client, callback_query):
             return
-            
+
         waiting_for_word[callback_query.from_user.id] = True
         await callback_query.message.edit_text(
             "📝 Отправьте слово, которое хотите добавить в список запрещенных.\n"
             "Для отмены нажмите кнопку ниже.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ Отмена", callback_data="cancel_add_word")]
-            ])
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("❌ Отмена", callback_data="cancel_add_word")]]
+            ),
         )
-    
+
     elif data == "cancel_add_word":
         waiting_for_word[callback_query.from_user.id] = False
         await callback_query.message.edit_text(
-            "⚙️ Настройки фильтрации:", 
-            reply_markup=filter_settings_markup
+            "⚙️ Настройки фильтрации:", reply_markup=filter_settings_markup
         )
 
 
@@ -376,13 +419,15 @@ def get_keywords(chat_id: int = None) -> List[str]:
     try:
         # Получаем общий список слов
         with open("bad_words.txt", "r", encoding="utf-8") as f:
-            keywords = unidecode.unidecode(f.read().lower().replace(" ", "")).split("\n")
-        
+            keywords = unidecode.unidecode(f.read().lower().replace(" ", "")).split(
+                "\n"
+            )
+
         # Если указан chat_id, добавляем слова конкретного чата
         if chat_id:
             chat_keywords = db.get_chat_badwords(chat_id)
             keywords.extend(chat_keywords)
-        
+
         # Удаляем дубликаты и пустые строки
         return list(filter(None, set(keywords)))
     except Exception as e:
@@ -516,9 +561,7 @@ async def set_threshold(client: Client, message: Message):
 # Команда /start
 @bot.on_message(filters.text & filters.command(["start"]))
 async def start(client: Client, message: Message):
-    await message.reply(
-        "Добро пожаловать! Я антиспам бот. Используйте /list, чтобы увидеть текущий список запрещенных слов."
-    )
+    await message.reply(START_MESSAGE)
 
 
 @bot.on_message(filters.text & filters.command(["gen_regex"]))
@@ -574,12 +617,15 @@ async def check_is_admin(client: Client, message: Message) -> bool:
     user = await client.get_chat_member(message.chat.id, message.from_user.id)
     message.from_user.restrictions
     if not user.privileges:
-        msg = await message.reply(f"Вы не являетесь администратором или основателем! {message.from_user.status.value}")
+        msg = await message.reply(
+            f"Вы не являетесь администратором или основателем! {message.from_user.status.value}"
+        )
         await asyncio.sleep(3.0)
         await client.delete_messages(message.chat.id, [msg.id, message.id])
-        
+
         return False
     return True
+
 
 async def check_is_admin_callback(
     client: Client, callback_query: CallbackQuery
@@ -665,10 +711,12 @@ async def main(client: Client, message: Message) -> None:
             # Добавляем слово в файл
             word = message.text.strip()
             chat_id = message.chat.id
-            
+
             # Добавляем слово в базу данных для конкретного чата
-            success = db.add_chat_badword(chat_id, unidecode.unidecode(word), message.from_user.id)
-            
+            success = db.add_chat_badword(
+                chat_id, unidecode.unidecode(word), message.from_user.id
+            )
+
             # Сбрасываем состояние ожидания
             waiting_for_word[message.from_user.id] = False
             filter_settings_markup = InlineKeyboardMarkup(
@@ -680,7 +728,8 @@ async def main(client: Client, message: Message) -> None:
                     ],
                     [
                         InlineKeyboardButton(
-                            "🗑 Удалить запрещенное слово", callback_data="remove_badword"
+                            "🗑 Удалить запрещенное слово",
+                            callback_data="remove_badword",
                         )
                     ],
                     [InlineKeyboardButton("◀️ Назад", callback_data="settings")],
@@ -692,7 +741,7 @@ async def main(client: Client, message: Message) -> None:
                 await message.reply(
                     f"✅ Слово '{word}' добавлено в список запрещенных для этого чата!\n\n"
                     f"Текущий список запрещенных слов:\n`{', '.join(keywords)}`",
-                    reply_markup=filter_settings_markup
+                    reply_markup=filter_settings_markup,
                 )
             else:
                 await message.reply("❌ Ошибка при добавлении слова")

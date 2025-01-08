@@ -129,7 +129,7 @@ class Database:
 
     def add_chat_badword(self, chat_id: int, word: str, added_by: int) -> bool:
         """Добавляет запрещенное слово для конкретного чата"""
-        word = re.compile(re.escape(word), re.IGNORECASE)
+        word = re.compile(unidecode.unidecode(word.lower()), re.IGNORECASE)
         try:
             
             self.cursor.execute(
@@ -137,7 +137,7 @@ class Database:
                 INSERT OR IGNORE INTO chat_badwords (chat_id, word, added_by, added_at)
                 VALUES (?, ?, ?, ?)
                 """,
-                (chat_id, unidecode.unidecode(word.lower()), added_by, datetime.now())
+                (chat_id, word, added_by, datetime.now())
             )
             self.connection.commit()
             return True

@@ -1,13 +1,11 @@
 import asyncio
 import datetime
-import logging
 import os
 import re
 import time
 from functools import lru_cache
-from logging.handlers import RotatingFileHandler
 from typing import List, Optional
-
+from logger_config import logger
 import pyrogram.errors
 from database import Database
 import pyrogram
@@ -27,32 +25,6 @@ from collections import defaultdict
 # Загрузка переменных окружения из .env файла
 load_dotenv()
 
-# Параметры для логирования
-log_dir = "logs"  # Папка для хранения логов
-os.makedirs(log_dir, exist_ok=True)  # Создание папки, если она не существует
-
-# Формирование имени файла лога с датой
-log_filename = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d.log")
-log_path = os.path.join(log_dir, log_filename)
-
-# Настройка логирования
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)  # Уровень логирования
-
-# Ротация логов (файл размером до 1 МБ, 5 резервных копий)
-file_handler = RotatingFileHandler(
-    log_path,
-    maxBytes=10**6,  # 1 МБ на файл
-    backupCount=5,  # Хранение 5 резервных копий
-)
-file_handler.setLevel(logging.INFO)
-
-# Форматирование логов
-formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-file_handler.setFormatter(formatter)
-
-# Добавляем обработчик к логгеру
-logger.addHandler(file_handler)
 db = Database("antispam.db")
 
 # Токены и ключи для работы с API
@@ -203,7 +175,9 @@ async def callback_query(client: Client, callback_query: CallbackQuery):
     elif data == "cancel":
         chat_id = callback_query.message.chat.id
         try:
-            chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
+            chat_member = await client.get_chat_member(
+                chat_id, callback_query.from_user.id
+            )
         except pyrogram.errors.UserNotParticipant:
             await callback_query.answer(
                 "Вы не являетесь участником чата", show_alert=True
@@ -776,7 +750,6 @@ async def main(client: Client, message: Message) -> None:
             else:
                 await message.reply("❌ Ошибка при добавлении слова")
             return
-
 
         # Читаем список автомодерации
         try:

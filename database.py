@@ -1,18 +1,16 @@
 import sqlite3
 from datetime import datetime
-import logging
+from logger_config import logger
 import unidecode
 import re
 
 
 class Database:
     def __init__(self, db_file):
-        self.logger = logging.getLogger(__name__)
         
         self.connection = sqlite3.connect(db_file)
         self.cursor = self.connection.cursor()
         self.create_tables()
-        self.logger.info(f"DB STARTED at {datetime.now()}")
         
     def create_tables(self):
         # Таблица для каналов
@@ -146,7 +144,7 @@ class Database:
             self.connection.commit()
             return True
         except sqlite3.Error as e:
-            self.logger.error(f"Error adding bad word: {e}")
+            logger.error(f"Error adding bad word: {e}")
             return False
 
     def get_chat_badwords(self, chat_id: int) -> list[str]:

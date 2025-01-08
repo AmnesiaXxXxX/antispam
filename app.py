@@ -464,18 +464,16 @@ async def callback_query(client: Client, callback_query: CallbackQuery):
 # Функция для проверки пользователя через FunStat API
 async def check_user(user_id: int) -> bool | Optional[str]:
     """
-    Проверяет, когда пользователь отправил своё первое сообщение.
-    Возвращает строку "True"/"False", если прошло более 60 дней с первого сообщения.
-    Если возникли ошибки, возвращает сообщение об ошибке.
-
-    :param username: Имя пользователя.
-    :return: Строка с результатом проверки.
+    Проверяет пользователя через FunStat API и сохраняет результаты в БД.
     """
     if not user_id:
         return False
+        
+    # Сначала проверяем, есть ли пользователь уже в БД
+    if db.is_user_verified(user_id):
+        return True
 
     try:
-        # Выполняем запрос к FunStat API для получения данных пользователя
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"https://funstat.org/api/v1/users/{user_id}/stats_min",
@@ -490,20 +488,25 @@ async def check_user(user_id: int) -> bool | Optional[str]:
                 if not first_msg_date_str:
                     return False
 
-                # Преобразуем дату первого сообщения в объект datetime с UTC
                 first_msg_date = datetime.datetime.strptime(
                     first_msg_date_str, "%Y-%m-%dT%H:%M:%SZ"
                 ).replace(tzinfo=datetime.timezone.utc)
                 
-                # Получаем текущее время с UTC
                 now = datetime.datetime.now(datetime.timezone.utc)
                 delta = now - first_msg_date
 
-                # Если с первого сообщения прошло больше 60 дней, возвращаем True
                 if delta >= datetime.timedelta(days=60):
+                    # Сохраняем данные о проверенном пользователе
+                    user_data = {
+                        'first_msg_date': first_msg_date_str,
+                        'messages_count': result.get('messages_count', 0),
+                        'chats_count': result.get('chats_count', 0)
+                    }
+                    db.add_verified_user(user_id, user_data)
                     return result
-                else:
-                    return False
+                    
+                return False
+                
     except Exception as e:
         logger.error(f"Error checking user: {e}")
         return False

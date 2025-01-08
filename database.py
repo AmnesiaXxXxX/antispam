@@ -58,6 +58,16 @@ class Database:
             UNIQUE(chat_id, word)
         )""")
         
+        # Добавляем таблицу для хранения проверенных пользователей
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS verified_users (
+            user_id INTEGER PRIMARY KEY,
+            verified_at TIMESTAMP,
+            first_message_date TEXT,
+            messages_count INTEGER,
+            chats_count INTEGER
+        )""")
+        
         self.connection.commit()
 
     def update_stats(
@@ -163,3 +173,30 @@ class Database:
             (chat_id,)
         )
         return [row[0] for row in self.cursor.fetchall()]
+
+    def add_verified_user(self, user_id: int, user_data: dict) -> bool:
+        """Добавляет проверенного пользователя в базу данных"""
+        try:
+            self.cursor.execute("""
+            INSERT OR REPLACE INTO verified_users 
+            (user_id, verified_at, first_message_date, messages_count, chats_count)
+            VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?)
+            """, (
+                user_id,
+                user_data.get('first_msg_date'),
+                user_data.get('messages_count', 0),
+                user_data.get('chats_count', 0)
+            ))
+            self.connection.commit()
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Error adding verified user: {e}")
+            return False
+            
+    def is_user_verified(self, user_id: int) -> bool:
+        """Проверяет, является ли пользователь проверенным"""
+        self.cursor.execute(
+            "SELECT user_id FROM verified_users WHERE user_id = ?",
+            (user_id,)
+        )
+        return bool(self.cursor.fetchone())

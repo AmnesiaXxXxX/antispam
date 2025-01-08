@@ -869,7 +869,6 @@ async def main(client: Client, message: Message) -> None:
         if is_spam:
             # Проверяем валидность пользователя только если обнаружен спам
             is_user_valid = await check_user(message.from_user.id)
-            await process_new_user(message, message.from_user)
         
             # Пропускаем сообщения от доверенных пользователей
             if is_user_valid == "False" and message.from_user.id != 5957115070:
@@ -888,7 +887,9 @@ async def main(client: Client, message: Message) -> None:
                     reply_markup=ban_button(message.from_user.id, message.id),
                 )
             db.update_stats(message.chat.id, deleted=True)
-
+        else:
+            await process_new_user(message, message.from_user)
+    
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
 

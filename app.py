@@ -501,7 +501,8 @@ async def check_user(user_id: int) -> bool | Optional[str]:
                     return result
                 else:
                     return False
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error checking user: {e}")
         return False
 
 

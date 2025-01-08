@@ -724,7 +724,7 @@ async def main(client: Client, message: Message) -> None:
 
             # Добавляем слово в базу данных для конкретного чата
             success = db.add_chat_badword(chat_id, word, message.from_user.id)
-
+            
             # Сбрасываем состояние ожидания
             waiting_for_word[message.from_user.id] = False
             filter_settings_markup = InlineKeyboardMarkup(
@@ -755,8 +755,6 @@ async def main(client: Client, message: Message) -> None:
                 await message.reply("❌ Ошибка при добавлении слова")
             return
 
-        if not message.text:
-            return  # Если сообщение пустое, игнорируем его
 
         # Читаем список автомодерации
         try:

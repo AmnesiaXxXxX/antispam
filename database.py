@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime
 
 import unidecode
+import re
 
 
 class Database:
@@ -128,7 +129,9 @@ class Database:
 
     def add_chat_badword(self, chat_id: int, word: str, added_by: int) -> bool:
         """Добавляет запрещенное слово для конкретного чата"""
+        word = re.escape(word)
         try:
+            
             self.cursor.execute(
                 """
                 INSERT OR IGNORE INTO chat_badwords (chat_id, word, added_by, added_at)

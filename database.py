@@ -13,6 +13,16 @@ class Database:
         self.create_tables()
         
     def create_tables(self):
+        # Таблица для проверенных пользователей (перемещаем в начало, так как на неё будут ссылаться другие таблицы)
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS verified_users (
+            user_id INTEGER PRIMARY KEY,
+            verified_at TIMESTAMP,
+            first_message_date TEXT,
+            messages_count INTEGER,
+            chats_count INTEGER
+        )""")
+
         # Таблица для каналов
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS chats (
@@ -23,7 +33,7 @@ class Database:
             is_active BOOLEAN DEFAULT 1
         )""")
 
-        # Таблица для сообщений
+        # Таблица для сообщений с внешним ключом на verified_users
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +42,8 @@ class Database:
             message_text TEXT,
             timestamp TIMESTAMP,
             is_spam BOOLEAN,
-            FOREIGN KEY (chat_id) REFERENCES chats (chat_id)
+            FOREIGN KEY (chat_id) REFERENCES chats (chat_id),
+            FOREIGN KEY (user_id) REFERENCES verified_users (user_id)
         )""")
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS statistics (
@@ -46,7 +57,7 @@ class Database:
             FOREIGN KEY (chat_id) REFERENCES chats (chat_id)
         )""")
 
-        # Добавляем таблицу для хранения запрещенных слов по чатам
+        # Обновляем таблицу chat_badwords с внешним ключом
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS chat_badwords (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,18 +66,13 @@ class Database:
             added_by INTEGER,
             added_at TIMESTAMP,
             FOREIGN KEY (chat_id) REFERENCES chats (chat_id),
+            FOREIGN KEY (added_by) REFERENCES verified_users (user_id),
             UNIQUE(chat_id, word)
         )""")
         
-        # Добавляем таблицу для хранения проверенных пользователей
-        self.cursor.execute("""
-        CREATE TABLE IF NOT EXISTS verified_users (
-            user_id INTEGER PRIMARY KEY,
-            verified_at TIMESTAMP,
-            first_message_date TEXT,
-            messages_count INTEGER,
-            chats_count INTEGER
-        )""")
+        # Добавляем индексы для оптимизации
+        self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)")
+        self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_badwords_added_by ON chat_badwords(added_by)")
         
         self.connection.commit()
 

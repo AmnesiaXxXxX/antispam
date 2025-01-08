@@ -85,6 +85,10 @@ START_MESSAGE = """# 🤖 Великий Фильтр - Умный инстру�
 
 
 """
+WORDS_PER_PAGE = 5  # Количество слов на странице
+
+
+
 
 # Инициализация бота с использованием токенов
 bot = Client(
@@ -115,6 +119,83 @@ async def menu_command(client, message):
         "🔧 Главное меню настроек бота:", reply_markup=get_main_menu()
     )
 
+@bot.on_callback_query(filters.regex(r"^remove_badword"))
+async def remove_badword_handler(client: Client, callback_query: CallbackQuery):
+    if not await check_is_admin_callback(client, callback_query):
+        return
+        
+    # Получаем параметр страницы из callback_data
+    page = 0
+    if "_" in callback_query.data:
+        page = int(callback_query.data.split("_")[1])
+        
+    chat_id = callback_query.message.chat.id
+    
+    # Получаем список слов для данного чата
+    words = db.get_chat_badwords(chat_id)
+    total_pages = (len(words) - 1) // WORDS_PER_PAGE
+    
+    # Формируем кнопки для текущей страницы
+    keyboard = []
+    start_idx = page * WORDS_PER_PAGE
+    end_idx = start_idx + WORDS_PER_PAGE
+    
+    for word in words[start_idx:end_idx]:
+        keyboard.append([
+            InlineKeyboardButton(
+                f"❌ {word}", 
+                callback_data=f"del_word_{chat_id}_{word}"
+            )
+        ])
+    
+    # Добавляем кнопки навигации
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(
+            InlineKeyboardButton("⬅️", callback_data=f"remove_badword_{page-1}")
+        )
+    if page < total_pages:
+        nav_buttons.append(
+            InlineKeyboardButton("➡️", callback_data=f"remove_badword_{page+1}")
+        )
+    if nav_buttons:
+        keyboard.append(nav_buttons)
+        
+    # Добавляем кнопку возврата
+    keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="filter_settings")])
+    
+    markup = InlineKeyboardMarkup(keyboard)
+    
+    text = f"📝 Выберите слово для удаления (страница {page + 1}/{total_pages + 1}):"
+    
+    if callback_query.message.text != text:
+        await callback_query.message.edit_text(text, reply_markup=markup)
+    else:
+        await callback_query.message.edit_reply_markup(markup)
+
+@bot.on_callback_query(filters.regex(r"^del_word_"))
+async def delete_word_handler(client: Client, callback_query: CallbackQuery):
+    if not await check_is_admin_callback(client, callback_query):
+        return
+        
+    try:
+        _, chat_id, word = callback_query.data.split("_", 2)
+        chat_id = int(chat_id)
+        
+        # Удаляем слово из базы данных
+        db.cursor.execute(
+            "DELETE FROM chat_badwords WHERE chat_id = ? AND word = ?",
+            (chat_id, word)
+        )
+        db.connection.commit()
+        
+        await callback_query.answer(f"Слово '{word}' удалено!")
+        # Возвращаемся к списку слов
+        await remove_badword_handler(client, callback_query)
+        
+    except Exception as e:
+        logger.error(f"Error deleting word: {e}")
+        await callback_query.answer("Ошибка при удалении слова")
 
 @bot.on_callback_query(filters.regex(r"ban_user_(\d+)_(\d+)"))
 async def ban_user_callback(client: Client, callback_query: CallbackQuery):

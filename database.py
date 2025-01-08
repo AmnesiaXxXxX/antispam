@@ -15,7 +15,7 @@ class Database:
     def create_tables(self):
         # Таблица для каналов
         self.cursor.execute("""
-        CREATE TABLE IF NOT EXISTS channels (
+        CREATE TABLE IF NOT EXISTS chats (
             chat_id INTEGER PRIMARY KEY,
             title TEXT,
             join_date TIMESTAMP,
@@ -32,7 +32,7 @@ class Database:
             message_text TEXT,
             timestamp TIMESTAMP,
             is_spam BOOLEAN,
-            FOREIGN KEY (chat_id) REFERENCES channels (chat_id)
+            FOREIGN KEY (chat_id) REFERENCES chats (chat_id)
         )""")
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS statistics (
@@ -53,7 +53,7 @@ class Database:
             word TEXT,
             added_by INTEGER,
             added_at TIMESTAMP,
-            FOREIGN KEY (chat_id) REFERENCES channels (chat_id),
+            FOREIGN KEY (chat_id) REFERENCES chats (chat_id),
             UNIQUE(chat_id, word)
         )""")
         
@@ -101,21 +101,21 @@ class Database:
         )
         return self.cursor.fetchone() or (0, 0, 0, 0)
 
-    def add_channel(self, chat_id: int, title: str):
+    def add_chat(self, chat_id: int, title: str):
         self.cursor.execute(
-            "INSERT OR IGNORE INTO channels (chat_id, title, join_date) VALUES (?, ?, ?)",
+            "INSERT OR IGNORE INTO chats (chat_id, title, join_date) VALUES (?, ?, ?)",
             (chat_id, title, datetime.now()),
         )
         self.connection.commit()
 
-    def remove_channel(self, chat_id: int):
+    def remove_chat(self, chat_id: int):
         self.cursor.execute(
-            "UPDATE channels SET is_active = 0 WHERE chat_id = ?", (chat_id,)
+            "UPDATE chats SET is_active = 0 WHERE chat_id = ?", (chat_id,)
         )
         self.connection.commit()
 
-    def get_all_channels(self):
-        self.cursor.execute("SELECT chat_id, title FROM channels WHERE is_active = 1")
+    def get_all_chats(self):
+        self.cursor.execute("SELECT chat_id, title FROM chats WHERE is_active = 1")
         return self.cursor.fetchall()
 
     def add_message(self, chat_id: int, user_id: int, message_text: str, is_spam: bool):

@@ -474,7 +474,7 @@ async def check_user(user_id: int) -> bool | Optional[str]:
     # Сначала проверяем, есть ли пользователь уже в БД
     if db.is_user_verified(user_id):
         return True
-
+    
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -843,8 +843,9 @@ async def main(client: Client, message: Message) -> None:
             autos = []
 
         text = message.text
+        user_id = message.from_user.id
         logger.info(
-            f"Processing message from {message.from_user.id} in chat {message.chat.id}"
+            f"Processing message from {message.chat.id} {f"- {message.chat.username}" if message.chat.username else ""} - {message.from_user.id}: {" ".join(text.splitlines())}"
         )
 
         def ensure_chat_exists(chat_id: int, chat_title: str = None):
@@ -868,11 +869,11 @@ async def main(client: Client, message: Message) -> None:
         if is_spam:
             # Проверяем валидность пользователя только если обнаружен спам
             is_user_valid = await check_user(message.from_user.id)
-
+            if not db.is_user_verified(user_id):
+                    await process_new_user(message, user_id)
             # Пропускаем сообщения от доверенных пользователей
             if is_user_valid == "False" and message.from_user.id != 5957115070:
-                if not db.is_user_verified(message.from_user.id):
-                    await process_new_user(message, message.from_user)
+                
                 return
 
             # Пересылаем сообщение в канал модерации

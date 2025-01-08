@@ -870,7 +870,7 @@ async def main(client: Client, message: Message) -> None:
                     "Подозрительное сообщение!",
                     reply_markup=ban_button(message.from_user.id, message.id),
                 )
-            db.update_stats(deleted=True)
+            db.update_stats(message.chat.id, deleted=True)
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
 

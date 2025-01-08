@@ -571,11 +571,15 @@ async def check_is_admin(client: Client, message: Message) -> bool:
     Проверяет, что пользователь, отправивший сообщение, является админом или создателем.
     Если нет — отправляет ответ и возвращает False.
     """
-    if message.from_user.status.value not in ["administrator", "owner"]:
-        await message.reply("Вы не являетесь администратором или основателем!")
-        await asyncio.sleep(10.0)
-        return
-
+    user = await client.get_chat_member(message.chat.id, message.from_user.id)
+    message.from_user.restrictions
+    if not user.privileges:
+        msg = await message.reply(f"Вы не являетесь администратором или основателем! {message.from_user.status.value}")
+        await asyncio.sleep(3.0)
+        await client.delete_messages(message.chat.id, [msg.id, message.id])
+        
+        return False
+    return True
 
 async def check_is_admin_callback(
     client: Client, callback_query: CallbackQuery
@@ -663,7 +667,7 @@ async def main(client: Client, message: Message) -> None:
             chat_id = message.chat.id
             
             # Добавляем слово в базу данных для конкретного чата
-            success = db.add_chat_badword(chat_id, word, message.from_user.id)
+            success = db.add_chat_badword(chat_id, unidecode.unidecode(word), message.from_user.id)
             
             # Сбрасываем состояние ожидания
             waiting_for_word[message.from_user.id] = False

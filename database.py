@@ -42,7 +42,8 @@ class Database:
             deleted_messages INTEGER DEFAULT 0,
             total_users INTEGER DEFAULT 0,
             banned_users INTEGER DEFAULT 0,
-            last_updated TIMESTAMP
+            last_updated TIMESTAMP,
+            FOREIGN KEY (chat_id) REFERENCES chats (chat_id)
         )""")
 
         # Добавляем таблицу для хранения запрещенных слов по чатам

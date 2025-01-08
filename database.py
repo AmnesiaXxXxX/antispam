@@ -13,6 +13,18 @@ class Database:
         self.create_tables()
         
     def create_tables(self):
+        # Таблица для всех пользователей
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            first_name TEXT,
+            username TEXT,
+            join_date TIMESTAMP,
+            spam_count INTEGER DEFAULT 0,
+            is_banned BOOLEAN DEFAULT 0,
+            ban_pending BOOLEAN DEFAULT 0
+        )""")
+
         # Обновленная таблица verified_users с новыми полями
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS verified_users (
@@ -70,6 +82,19 @@ class Database:
             FOREIGN KEY (chat_id) REFERENCES chats (chat_id),
             FOREIGN KEY (added_by) REFERENCES verified_users (user_id),
             UNIQUE(chat_id, word)
+        )""")
+        
+        # Таблица для спам-предупреждений
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS spam_warnings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            chat_id INTEGER,
+            message_text TEXT,
+            warning_date TIMESTAMP,
+            is_confirmed BOOLEAN DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users (user_id),
+            FOREIGN KEY (chat_id) REFERENCES chats (chat_id)
         )""")
         
         # Добавляем индексы для оптимизации
@@ -213,3 +238,87 @@ class Database:
             (user_id,)
         )
         return bool(self.cursor.fetchone())
+
+    def add_user(self, user_id: int, first_name: str | None = None, username: str | None = None) -> bool:
+        """Добавляет нового пользователя или обновляет существующего"""
+        try:
+            self.cursor.execute("""
+            INSERT INTO users (user_id, first_name, username, join_date)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                first_name = ?,
+                username = ?
+            """, (user_id, first_name, username, first_name, username))
+            self.connection.commit()
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Error adding user: {e}")
+            return False
+
+    def add_spam_warning(self, user_id: int, chat_id: int, message_text: str) -> bool:
+        """Добавляет предупреждение о спаме и проверяет количество нарушений"""
+        try:
+            self.cursor.execute("""
+            INSERT INTO spam_warnings (user_id, chat_id, message_text, warning_date)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            """, (user_id, chat_id, message_text))
+            
+            # Увеличиваем счетчик спама
+            self.cursor.execute("""
+            UPDATE users 
+            SET spam_count = spam_count + 1,
+                ban_pending = CASE WHEN spam_count + 1 >= 3 THEN 1 ELSE 0 END
+            WHERE user_id = ?
+            """, (user_id,))
+            
+            self.connection.commit()
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Error adding spam warning: {e}")
+            return False
+
+    def get_pending_bans(self) -> list:
+        """Получает список пользователей, ожидающих бана"""
+        self.cursor.execute("""
+        SELECT user_id, first_name, username, spam_count 
+        FROM users 
+        WHERE ban_pending = 1 AND is_banned = 0
+        """)
+        return self.cursor.fetchall()
+
+    def confirm_ban(self, user_id: int) -> bool:
+        """Подтверждает бан пользователя администратором"""
+        try:
+            self.cursor.execute("""
+            UPDATE users 
+            SET is_banned = 1, ban_pending = 0
+            WHERE user_id = ?
+            """, (user_id,))
+            self.connection.commit()
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Error confirming ban: {e}")
+            return False
+
+    def reject_ban(self, user_id: int) -> bool:
+        """Отклоняет бан пользователя"""
+        try:
+            self.cursor.execute("""
+            UPDATE users 
+            SET spam_count = 0, ban_pending = 0
+            WHERE user_id = ?
+            """, (user_id,))
+            self.connection.commit()
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Error rejecting ban: {e}")
+            return False
+
+    def is_user_banned(self, user_id: int) -> bool:
+        """Проверяет, забанен ли пользователь"""
+        self.cursor.execute(
+            "SELECT is_banned FROM users WHERE user_id = ?",
+            (user_id,)
+        )
+        result = self.cursor.fetchone()
+        return bool(result and result[0])

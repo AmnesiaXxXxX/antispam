@@ -19,7 +19,7 @@ from pyrogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
-    User
+    User,
 )
 
 from collections import defaultdict
@@ -474,7 +474,7 @@ async def check_user(user_id: int) -> bool | Optional[str]:
     # Сначала проверяем, есть ли пользователь уже в БД
     if db.is_user_verified(user_id):
         return True
-    
+
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -560,6 +560,25 @@ async def on_new_member(client: Client, message: Message):
             # Отправляем сообщение, когда бот был добавлен в чат
             await message.reply("Привет! Я был добавлен в этот чат. Чем могу помочь?")
             break
+        if db.is_user_banned(new_member.id):
+            reply_markup = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "🚫 Забанить",
+                            callback_data=f"ban_{message.id}_{message.from_user.id}",
+                        ),
+                        InlineKeyboardButton(
+                            text="❌ Отмена",
+                            callback_data="cancel",
+                        ),
+                    ],
+                ]
+            )
+            await message.reply(
+                "Пользователь помечен как спамер!" "Нужно ли его забанить",
+                reply_markup=reply_markup,
+            )
 
 
 @lru_cache(maxsize=128)
@@ -757,15 +776,15 @@ def ban_button(user_id: int, msg_id: int) -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton(
-                    text="Забанить",
+                    text="🚫 Забанить",
                     callback_data=f"ban_user_{user_id}_{msg_id}",
                 ),
                 InlineKeyboardButton(
-                    text="Просто удалить",
+                    text="🗑 Просто удалить",
                     callback_data="delete",
                 ),
                 InlineKeyboardButton(
-                    text="Галя, отмена",
+                    text="❌ Отмена",
                     callback_data="cancel",
                 ),
             ]
@@ -843,7 +862,6 @@ async def main(client: Client, message: Message) -> None:
             autos = []
 
         text = message.text
-        user_id = message.from_user.id
         logger.info(
             f"Processing message from {message.chat.id} {f"- {message.chat.username}" if message.chat.username else ""} - {message.from_user.id}: {" ".join(text.splitlines())}"
         )
@@ -865,14 +883,17 @@ async def main(client: Client, message: Message) -> None:
 
         # Сохраняем сообщение в БД
         db.add_message(message.chat.id, message.from_user.id, text, is_spam)
-
+        db.add_user(
+            user_id=message.from_user.id,
+            first_name=message.from_user.first_name,
+            username=message.from_user.username if message.from_user.username else None,
+        )
         if is_spam:
             # Проверяем валидность пользователя только если обнаружен спам
             is_user_valid = await check_user(message.from_user.id)
-        
+
             # Пропускаем сообщения от доверенных пользователей
             if is_user_valid == "False" and message.from_user.id != 5957115070:
-                
                 return
 
             # Пересылаем сообщение в канал модерации
@@ -886,10 +907,10 @@ async def main(client: Client, message: Message) -> None:
                     "Подозрительное сообщение!",
                     reply_markup=ban_button(message.from_user.id, message.id),
                 )
+            db.add_spam_warning(message.from_user.id, message.chat.id, message.text)
+
             db.update_stats(message.chat.id, deleted=True)
-        else:
-            await process_new_user(message, message.from_user)
-    
+
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
 
@@ -897,21 +918,18 @@ async def main(client: Client, message: Message) -> None:
 async def process_new_user(message: Message, user: User) -> bool:
     """Обработка нового пользователя"""
     user_data = {
-        'first_name': user.first_name,
-        'username': user.username,
-        'first_msg_date': str(datetime.datetime.now()),
-        'messages_count': 0,
-        'chats_count': 1
+        "first_name": user.first_name,
+        "username": user.username,
+        "first_msg_date": str(datetime.datetime.now()),
     }
-    
+
     success = db.add_verified_user(user.id, user_data)
     if not success:
         logger.error(f"Failed to add user {user.id} to verified users")
         return False
-        
+
     db.update_stats(message.chat.id, users=True)
     return True
-
 
 
 # Запуск бота

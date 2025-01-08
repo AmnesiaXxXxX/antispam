@@ -200,7 +200,9 @@ class Database:
             return False
             
     def is_user_verified(self, user_id: int) -> bool:
-        """Проверяет, является ли пользователь проверенным"""
+        """
+        Проверяет, является ли пользователь проверенным
+        """
         self.cursor.execute(
             "SELECT user_id FROM verified_users WHERE user_id = ?",
             (user_id,)

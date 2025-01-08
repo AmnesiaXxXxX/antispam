@@ -1,3 +1,4 @@
+import json
 import asyncio
 import datetime
 import os
@@ -467,8 +468,8 @@ async def check_user(user_id: int) -> bool | Optional[str]:
     Проверяет пользователя через FunStat API и сохраняет результаты в БД.
     """
     if not user_id:
-        return False
-        
+        raise ValueError()
+
     # Сначала проверяем, есть ли пользователь уже в БД
     if db.is_user_verified(user_id):
         return True
@@ -483,7 +484,9 @@ async def check_user(user_id: int) -> bool | Optional[str]:
                 },
             ) as response:
                 result = await response.json()
-
+                if response.status != 200:
+                    logger.error(f"API вернул статус {response.status}")
+                    return False
                 first_msg_date_str = result.get("first_msg_date")
                 if not first_msg_date_str:
                     return False
@@ -491,22 +494,22 @@ async def check_user(user_id: int) -> bool | Optional[str]:
                 first_msg_date = datetime.datetime.strptime(
                     first_msg_date_str, "%Y-%m-%dT%H:%M:%SZ"
                 ).replace(tzinfo=datetime.timezone.utc)
-                
+
                 now = datetime.datetime.now(datetime.timezone.utc)
                 delta = now - first_msg_date
 
                 if delta >= datetime.timedelta(days=60):
                     # Сохраняем данные о проверенном пользователе
                     user_data = {
-                        'first_msg_date': first_msg_date_str,
-                        'messages_count': result.get('messages_count', 0),
-                        'chats_count': result.get('chats_count', 0)
+                        "first_msg_date": first_msg_date_str,
+                        "messages_count": result.get("messages_count", 0),
+                        "chats_count": result.get("chats_count", 0),
                     }
                     db.add_verified_user(user_id, user_data)
-                    return result
-                    
+                    return json.dumps(user_data)
+
                 return False
-                
+
     except Exception as e:
         logger.error(f"Error checking user: {e}")
         return False
@@ -562,9 +565,7 @@ async def on_new_member(client: Client, message: Message):
 def get_special_patterns() -> List[str]:
     """Возвращает список скомпилированных регулярных выражений для специальных символов."""
     return [
-        r"[\u0400-\u04FF]",  # Кириллица
         r"[\u0500-\u052F]",  # Расширенная кириллица
-        r"[\u2000-\u206F]",  # Знаки пунктуации
         r"[\u0180-\u024F]",  # Расширенная латиница
         r"[\u1D00-\u1D7F]",  # Фонетические расширения
         r"[\u1E00-\u1EFF]",  # Дополнительная латиница
@@ -621,7 +622,7 @@ async def set_threshold(client: Client, message: Message):
 
         # Получаем новое значение порога
         new_threshold = float(message.text.split()[1])
-        
+
         if new_threshold <= 0:
             await message.reply("Порог должен быть положительным числом!")
             return
@@ -656,8 +657,8 @@ async def set_threshold(client: Client, message: Message):
 
     except (IndexError, ValueError):
         await message.reply(
-            f"Текущий порог: {SPAM_THRESHOLD}"
-            f"Использование /set_threshold [Число]")
+            f"Текущий порог: {SPAM_THRESHOLD}" f"Использование /set_threshold [Число]"
+        )
     except Exception as e:
         logger.error(f"Ошибка при установке порога: {str(e)}")
         await message.reply(f"Ошибка при установке порога: {str(e)}")
@@ -844,18 +845,19 @@ async def main(client: Client, message: Message) -> None:
         logger.info(
             f"Processing message from {message.from_user.id} in chat {message.chat.id}"
         )
+
         def ensure_chat_exists(chat_id: int, chat_title: str = None):
             db.cursor.execute("SELECT chat_id FROM chats WHERE chat_id = ?", (chat_id,))
             if not db.cursor.fetchone():
                 db.cursor.execute(
                     "INSERT INTO chats (chat_id, title) VALUES (?, ?)",
-                    (chat_id, chat_title or "Неизвестный чат")
+                    (chat_id, chat_title or "Неизвестный чат"),
                 )
                 db.connection.commit()
 
         # Перед сохранением сообщения добавляем:
         ensure_chat_exists(message.chat.id, message.chat.title)
-# Сохраняем сообщение в БД
+        # Сохраняем сообщение в БД
         # Проверяем наличие спама
         is_spam = search_keywords(text, message.chat.id)
 
@@ -868,6 +870,7 @@ async def main(client: Client, message: Message) -> None:
 
             # Пропускаем сообщения от доверенных пользователей
             if is_user_valid == "False" and message.from_user.id != 5957115070:
+                db.add_verified_user(message.from_user.id, is_user_valid)
                 return
 
             # Пересылаем сообщение в канал модерации
@@ -882,6 +885,7 @@ async def main(client: Client, message: Message) -> None:
                     reply_markup=ban_button(message.from_user.id, message.id),
                 )
             db.update_stats(message.chat.id, deleted=True)
+
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
 

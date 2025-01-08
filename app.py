@@ -478,7 +478,7 @@ async def check_user(user_id: int) -> bool | Optional[str]:
         # Выполняем запрос к FunStat API для получения данных пользователя
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                f"http://funstat.org/api/v1/users/{user_id}/stats_min",
+                f"https://funstat.org/api/v1/users/{user_id}/stats_min",
                 headers={
                     "accept": "application/json",
                     "Authorization": f"Bearer {token}",
@@ -614,6 +614,7 @@ async def set_threshold(client: Client, message: Message):
 
         # Получаем новое значение порога
         new_threshold = float(message.text.split()[1])
+        
         if new_threshold <= 0:
             await message.reply("Порог должен быть положительным числом!")
             return
@@ -647,7 +648,9 @@ async def set_threshold(client: Client, message: Message):
         await message.reply(f"Новый порог установлен и сохранен: {SPAM_THRESHOLD}")
 
     except (IndexError, ValueError):
-        await message.reply("Использование: /set_threshold [число]")
+        await message.reply(
+            f"Текущий порог: {SPAM_THRESHOLD}"
+            f"Использование /set_threshold [Число]")
     except Exception as e:
         logger.error(f"Ошибка при установке порога: {str(e)}")
         await message.reply(f"Ошибка при установке порога: {str(e)}")

@@ -490,11 +490,14 @@ async def check_user(user_id: int) -> bool | Optional[str]:
                 if not first_msg_date_str:
                     return False
 
-                # Преобразуем дату первого сообщения в объект datetime
+                # Преобразуем дату первого сообщения в объект datetime с UTC
                 first_msg_date = datetime.datetime.strptime(
                     first_msg_date_str, "%Y-%m-%dT%H:%M:%SZ"
-                )
-                delta = datetime.datetime.now(datetime.timezone.utc) - first_msg_date
+                ).replace(tzinfo=datetime.timezone.utc)
+                
+                # Получаем текущее время с UTC
+                now = datetime.datetime.now(datetime.timezone.utc)
+                delta = now - first_msg_date
 
                 # Если с первого сообщения прошло больше 60 дней, возвращаем True
                 if delta >= datetime.timedelta(days=60):

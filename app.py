@@ -19,6 +19,7 @@ from pyrogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
+    User
 )
 
 from collections import defaultdict
@@ -870,7 +871,8 @@ async def main(client: Client, message: Message) -> None:
 
             # Пропускаем сообщения от доверенных пользователей
             if is_user_valid == "False" and message.from_user.id != 5957115070:
-                db.add_verified_user(message.from_user.id, is_user_valid)
+                if not db.is_user_verified(message.from_user.id):
+                    await process_new_user(message, message.from_user)
                 return
 
             # Пересылаем сообщение в канал модерации
@@ -890,12 +892,12 @@ async def main(client: Client, message: Message) -> None:
         logger.exception(f"Error processing message: {e}")
 
 
-async def process_new_user(message: types.Message, user: types.User) -> bool:
+async def process_new_user(message: Message, user: User) -> bool:
     """Обработка нового пользователя"""
     user_data = {
         'first_name': user.first_name,
         'username': user.username,
-        'first_msg_date': str(datetime.now()),
+        'first_msg_date': str(datetime.datetime.now()),
         'messages_count': 0,
         'chats_count': 1
     }
@@ -908,13 +910,6 @@ async def process_new_user(message: types.Message, user: types.User) -> bool:
     db.update_stats(message.chat.id, users=True)
     return True
 
-@dp.message_handler()
-async def handle_message(message: types.Message):
-    """Обработчик всех сообщений"""
-    if not db.is_user_verified(message.from_user.id):
-        await process_new_user(message, message.from_user)
-    
-    # ...existing code...
 
 
 # Запуск бота

@@ -869,8 +869,7 @@ async def main(client: Client, message: Message) -> None:
         if is_spam:
             # Проверяем валидность пользователя только если обнаружен спам
             is_user_valid = await check_user(message.from_user.id)
-            if not db.is_user_verified(user_id):
-                    await process_new_user(message, message.from_user)
+            await process_new_user(message, message.from_user)
         
             # Пропускаем сообщения от доверенных пользователей
             if is_user_valid == "False" and message.from_user.id != 5957115070:

@@ -7,8 +7,10 @@ import time
 from functools import lru_cache
 from logging.handlers import RotatingFileHandler
 from typing import List, Optional
-from database import Database
 
+import pyrogram.errors
+from database import Database
+import pyrogram
 import aiohttp
 import unidecode
 from dotenv import load_dotenv
@@ -184,7 +186,7 @@ async def ban_user_callback(client: Client, callback_query: CallbackQuery):
 
 
 @bot.on_callback_query()
-async def callback_query(client, callback_query: CallbackQuery):
+async def callback_query(client: Client, callback_query: CallbackQuery):
     data = callback_query.data
 
     if data == "stats":
@@ -200,7 +202,12 @@ async def callback_query(client, callback_query: CallbackQuery):
 
     elif data == "cancel":
         chat_id = callback_query.message.chat.id
-        chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
+        try:
+            chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
+        except pyrogram.errors.UserNotParticipant:
+            await callback_query.answer(
+                "Вы не являетесь участником чата", show_alert=True
+            )
         if chat_member.status.value in ["administrator", "owner"]:
             await callback_query.message.delete()
         else:
@@ -371,6 +378,21 @@ async def callback_query(client, callback_query: CallbackQuery):
 
     elif data == "cancel_add_word":
         waiting_for_word[callback_query.from_user.id] = False
+        filter_settings_markup = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "🔍 Добавить запрещенное слово", callback_data="add_badword"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "🗑 Удалить запрещенное слово", callback_data="remove_badword"
+                    )
+                ],
+                [InlineKeyboardButton("◀️ Назад", callback_data="settings")],
+            ]
+        )
         await callback_query.message.edit_text(
             "⚙️ Настройки фильтрации:", reply_markup=filter_settings_markup
         )

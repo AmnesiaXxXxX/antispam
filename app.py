@@ -723,9 +723,7 @@ async def main(client: Client, message: Message) -> None:
             chat_id = message.chat.id
 
             # Добавляем слово в базу данных для конкретного чата
-            success = db.add_chat_badword(
-                chat_id, unidecode.unidecode(word), message.from_user.id
-            )
+            success = db.add_chat_badword(chat_id, word, message.from_user.id)
 
             # Сбрасываем состояние ожидания
             waiting_for_word[message.from_user.id] = False

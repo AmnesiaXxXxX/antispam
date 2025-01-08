@@ -429,9 +429,9 @@ def get_keywords(chat_id: int = None) -> List[str]:
     try:
         # Получаем общий список слов
         with open("bad_words.txt", "r", encoding="utf-8") as f:
-            keywords = unidecode.unidecode(f.read().lower().replace(" ", "")).split(
-                "\n"
-            )
+            keywords = unidecode.unidecode(
+                f.read().lower().replace(" ", "")
+            ).splitlines()
 
         # Если указан chat_id, добавляем слова конкретного чата
         if chat_id:
@@ -749,8 +749,8 @@ async def main(client: Client, message: Message) -> None:
                 # Получаем обновленный список слов для этого чата
                 keywords = get_keywords(chat_id)
                 await message.reply(
-                    f"✅ Слово '{word}' добавлено в список запрещенных для этого чата!\n\n"
-                    f"Текущий список запрещенных слов:\n`{', '.join(keywords)}`",
+                    f"✅ Слово **{word}** добавлено в список запрещенных для этого чата!\n\n"
+                    f"Текущий список запрещенных слов:\n`{'\n'.join(keywords)}`",
                     reply_markup=filter_settings_markup,
                 )
             else:

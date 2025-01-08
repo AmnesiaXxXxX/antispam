@@ -1,6 +1,8 @@
 import sqlite3
 from datetime import datetime
 
+import unidecode
+
 
 class Database:
     def __init__(self, db_file):
@@ -132,7 +134,7 @@ class Database:
                 INSERT OR IGNORE INTO chat_badwords (chat_id, word, added_by, added_at)
                 VALUES (?, ?, ?, ?)
                 """,
-                (chat_id, word.lower(), added_by, datetime.now())
+                (chat_id, unidecode.unidecode(word.lower()), added_by, datetime.now())
             )
             self.connection.commit()
             return True

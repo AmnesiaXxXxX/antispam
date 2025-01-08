@@ -814,11 +814,8 @@ async def main(client: Client, message: Message) -> None:
             waiting_for_word[message.from_user.id] = False
             global filter_settings_markup
             if success:
-                # Получаем обновленный список слов для этого чата
-                keywords = get_keywords(chat_id)
                 await message.reply(
-                    f"✅ Слово **{word}** добавлено в список запрещенных для этого чата!\n\n"
-                    f"Текущий список запрещенных слов:\n`{'\n'.join(keywords)}`",
+                    f"✅ Слово **{word}** добавлено в список запрещенных для этого чата!\n\n",
                     reply_markup=filter_settings_markup,
                 )
             else:
@@ -837,7 +834,18 @@ async def main(client: Client, message: Message) -> None:
         logger.info(
             f"Processing message from {message.from_user.id} in chat {message.chat.id}"
         )
+        def ensure_chat_exists(chat_id: int, chat_title: str = None):
+            db.cursor.execute("SELECT chat_id FROM chats WHERE chat_id = ?", (chat_id,))
+            if not db.cursor.fetchone():
+                db.cursor.execute(
+                    "INSERT INTO chats (chat_id, title) VALUES (?, ?)",
+                    (chat_id, chat_title or "Неизвестный чат")
+                )
+                db.connection.commit()
 
+        # Перед сохранением сообщения добавляем:
+        ensure_chat_exists(message.chat.id, message.chat.title)
+# Сохраняем сообщение в БД
         # Проверяем наличие спама
         is_spam = search_keywords(text, message.chat.id)
 

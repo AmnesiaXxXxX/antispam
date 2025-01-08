@@ -34,7 +34,7 @@ log_filename = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d.log")
 log_path = os.path.join(log_dir, log_filename)
 
 # Настройка логирования
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)  # Уровень логирования
 
 # Ротация логов (файл размером до 1 МБ, 5 резервных копий)
@@ -724,7 +724,7 @@ async def main(client: Client, message: Message) -> None:
 
             # Добавляем слово в базу данных для конкретного чата
             success = db.add_chat_badword(chat_id, word, message.from_user.id)
-            
+
             # Сбрасываем состояние ожидания
             waiting_for_word[message.from_user.id] = False
             filter_settings_markup = InlineKeyboardMarkup(
@@ -794,7 +794,7 @@ async def main(client: Client, message: Message) -> None:
                     "Подозрительное сообщение!",
                     reply_markup=ban_button(message.from_user.id, message.id),
                 )
-
+            db.update_stats(deleted=True)
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
 

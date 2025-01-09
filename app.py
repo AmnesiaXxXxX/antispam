@@ -576,7 +576,44 @@ async def on_new_member(client: Client, message: Message):
                 "Пользователь помечен как спамер!" "Нужно ли его забанить",
                 reply_markup=reply_markup,
             )
-
+            
+def highlight_banned_words(text: str, chat_id: int = None) -> str:
+    """
+    Обводит запрещенные слова в тексте тегами.
+    
+    Args:
+        text (str): Исходный текст
+        chat_id (int, optional): ID чата для получения специфичных банвордов
+        
+    Returns:
+        str: Текст с выделенными запрещенными словами
+    """
+    if not text or not isinstance(text, str):
+        return text
+        
+    try:
+        # Получаем список запрещенных слов
+        keywords = get_keywords(chat_id) or []
+        
+        # Если нет запрещенных слов, возвращаем исходный текст
+        if not keywords:
+            return text
+            
+        # Создаем паттерн для поиска слов
+        pattern = r'\b(' + '|'.join(map(re.escape, keywords)) + r')\b'
+        
+        # Заменяем найденные слова, оборачивая их в теги
+        def replace(match):
+            return f"<{match.group(0)}>"
+            
+        # Выполняем замену с учетом регистра
+        result = re.sub(pattern, replace, text, flags=re.IGNORECASE)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Ошибка при выделении запрещенных слов: {str(e)}")
+        return text
 
 @lru_cache(maxsize=128)
 def get_special_patterns() -> List[str]:
@@ -586,10 +623,8 @@ def get_special_patterns() -> List[str]:
         r"[\u0180-\u024F]",  # Расширенная латиница
         r"[\u1D00-\u1D7F]",  # Фонетические расширения
         r"[\u1E00-\u1EFF]",  # Дополнительная латиница
-        r"[\uFE00-\uFE0F]",  # Вариационные селекторы
         r"[\u0300-\u036F]",  # Комбинируемые диакритические знаки
         r"[\u1100-\u11FF]",  # Хангыль
-        r"[\u2600-\u26FF]",  # Различные символы
         r"[\u2700-\u27BF]",  # Дополнительные символы
         r"[\uFF00-\uFFEF]",  # Полноширинные формы
     ]
@@ -871,7 +906,7 @@ async def main(client: Client, message: Message) -> None:
                     (chat_id, chat_title or "Неизвестный чат"),
                 )
                 db.connection.commit()
-
+        
         # Перед сохранением сообщения добавляем:
         ensure_chat_exists(message.chat.id, message.chat.title)
         # Сохраняем сообщение в БД
@@ -884,7 +919,7 @@ async def main(client: Client, message: Message) -> None:
             first_name=message.from_user.first_name,
             username=message.from_user.username if message.from_user.username else None,
         )
-        db.add_message(message.chat.id, message.from_user.id, text, is_spam)
+        db.add_message(message.chat.id, message.from_user.id, highlight_banned_words(message.text, message.chat.id), is_spam)
         if is_spam:
             # is_user_valid = await check_user(message.from_user.id)
 

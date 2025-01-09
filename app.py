@@ -893,7 +893,8 @@ async def main(client: Client, message: Message) -> None:
             #     return
 
             await message.forward("amnesiawho1")
-
+            if len(message.text) > 1000:
+                return
             # Проверяем режим автомодерации для чата
             if str(message.chat.id) in autos:
                 await message.delete()

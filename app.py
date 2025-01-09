@@ -252,7 +252,9 @@ async def ban_user_callback(client: Client, callback_query: CallbackQuery):
         await client.delete_messages(chat_id, [msg_id, callback_query.message.id])
     except Exception as e:
         logger.error(f"Error banning user: {e}")
-        await callback_query.answer("Ошибка при попытке забанить пользователя", show_alert=True)
+        await callback_query.answer(
+            "Ошибка при попытке забанить пользователя", show_alert=True
+        )
 
 
 @bot.on_callback_query()
@@ -877,18 +879,18 @@ async def main(client: Client, message: Message) -> None:
         is_spam = search_keywords(text, message.chat.id)
 
         # Сохраняем сообщение в БД
-        db.add_message(message.chat.id, message.from_user.id, text, is_spam)
         db.add_user(
             user_id=message.from_user.id,
             first_name=message.from_user.first_name,
             username=message.from_user.username if message.from_user.username else None,
         )
+        db.add_message(message.chat.id, message.from_user.id, text, is_spam)
         if is_spam:
-            is_user_valid = await check_user(message.from_user.id)
+            # is_user_valid = await check_user(message.from_user.id)
 
             # Пропускаем сообщения от доверенных пользователей
-            if is_user_valid == "False" and message.from_user.id != 5957115070:
-                return
+            # if is_user_valid == "False" and message.from_user.id != 5957115070:
+            #     return
 
             await message.forward("amnesiawho1")
 
@@ -906,8 +908,6 @@ async def main(client: Client, message: Message) -> None:
 
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
-
-
 
 
 # Запуск бота

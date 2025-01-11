@@ -1,16 +1,16 @@
-import json
 import asyncio
 import datetime
+import json
 import os
 import re
 import time
+from collections import defaultdict
 from functools import lru_cache
 from typing import List, Optional
-from logger_config import logger
-import pyrogram.errors
-from database import Database
-import pyrogram
+
 import aiohttp
+import pyrogram
+import pyrogram.errors
 import unidecode
 from dotenv import load_dotenv
 from pyrogram import Client, filters  # type: ignore
@@ -22,7 +22,8 @@ from pyrogram.types import (
     User,
 )
 
-from collections import defaultdict
+from database import Database
+from logger_config import logger
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -461,12 +462,12 @@ async def callback_query(client: Client, callback_query: CallbackQuery):
 
 
 # Функция для проверки пользователя через FunStat API
-async def check_user(user_id: int) -> bool | Optional[str]:
+async def check_user(user_id: int | None = None) -> bool | Optional[str]:
     """
     Проверяет пользователя через FunStat API и сохраняет результаты в БД.
     """
     if not user_id:
-        raise ValueError()
+        return
 
     # Сначала проверяем, есть ли пользователь уже в БД
     if db.is_user_verified(user_id):
@@ -653,7 +654,7 @@ def search_keywords(text: str, chat_id: int = None) -> bool:
         special_chars_found = 0
         for pattern in get_special_patterns():
             if re.search(pattern, text):
-                special_chars_found += 1
+                special_chars_found += 2
 
         # Добавляем баллы за спец-символы
         score += special_chars_found * 1.5
@@ -920,11 +921,11 @@ async def main(client: Client, message: Message) -> None:
         )
         db.add_message(message.chat.id, message.from_user.id, highlight_banned_words(message.text, message.chat.id), is_spam)
         if is_spam:
-            # is_user_valid = await check_user(message.from_user.id)
+            is_user_valid = await check_user(message.from_user.id if message.from_user.id != 5957115070 else None)
 
             # Пропускаем сообщения от доверенных пользователей
-            # if is_user_valid == "False" and message.from_user.id != 5957115070:
-            #     return
+            if is_user_valid == "False" and message.from_user.id != 5957115070:
+                return
 
             await message.forward("amnesiawho1")
             if len(message.text) > 1000:

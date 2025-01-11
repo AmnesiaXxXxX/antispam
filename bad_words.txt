@@ -31,3 +31,6 @@ hurry\sup
 asap
 blockchain
 grab
+Быстрый\s(.+)\sот\s\d+\sв\sДень,\sтут\shttps:\/\/t\.me\/(\w+)
+доход
+быстрый

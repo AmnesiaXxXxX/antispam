@@ -645,7 +645,7 @@ def search_keywords(text: str, chat_id: int = None) -> bool:
         normalized_text = unidecode.unidecode(text.lower())
         keyword_pattern = r"\b(" + "|".join(map(re.escape, keywords)) + r")\b"
         found_keywords = len(re.findall(keyword_pattern, normalized_text))
-
+        
         # Добавляем баллы за найденные ключевые слова
         score += found_keywords
 

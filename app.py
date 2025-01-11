@@ -13,24 +13,23 @@ import pyrogram
 import pyrogram.errors
 import unidecode
 from dotenv import load_dotenv
-from pyrogram import Client, filters  # type: ignore
+from pyrogram import Client, filters  
 from pyrogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
-    User,
 )
 
 from database import Database
 from logger_config import logger
 
-# Загрузка переменных окружения из .env файла
+
 load_dotenv()
 
 db = Database("antispam.db")
 
-# Токены и ключи для работы с API
+
 token = os.getenv("TOKEN") or exit("TOKEN is not set")
 bot_token = os.getenv("BOT_TOKEN") or exit("BOT_TOKEN is not set")
 api_id = os.getenv("API_ID") or exit("API_ID is not set")
@@ -55,14 +54,14 @@ filter_settings_markup = InlineKeyboardMarkup(
     ]
 )
 
-START_MESSAGE = """# 🤖 Великий Фильтр - Умный инструмент для защиты чатов
+START_MESSAGE = """
 
 Великий Фильтр - это современное решение для предотвращения спама и управления чатами. С помощью этого бота вы сможете обеспечить чистоту и безопасность вашего сообщества, не прибегая к ручной модерации каждый раз.
 
 
-## 📋 Основные возможности
 
-### 🛡️ Антиспам - функции
+
+
 - **Фильтрация спама и ключевых слов**:  
   Мощные алгоритмы автоматически блокируют нежелательные сообщения и ключевые слова, упрощая общение участников.  
 - **Защита от нежелательных символов**:  
@@ -70,33 +69,33 @@ START_MESSAGE = """# 🤖 Великий Фильтр - Умный инстру�
 - **Проверка новых участников**:  
   Анализ профилей новых пользователей при вступлении помогает выявить и ограничить доступ подозрительным аккаунтам.
 
-### 👮 Модерация
+
 - **Удаление и блокировка**:  
   Позволяет автоматически или вручную удалять сообщения и блокировать нарушителей. Это обеспечивает соблюдение правил чата.  
 - **Пересылка подозрительных сообщений**:  
   Подозрительные сообщения отправляются модераторам на проверку, что помогает снизить вероятность ложных блокировок.
 
-### ⚙️ Настройка параметров
+
 - **Удобный интерфейс**:  
   Бот предоставляет интуитивно понятные кнопки и меню для управления его функциями.  
 - **Регулировка чувствительности фильтров**:  
   Подстройте уровень фильтрации под размер и специфику вашего сообщества.
 
-### 📊 Аналитика и отчёты
+
 - **Отслеживание активности**:  
   Бот собирает данные об активности участников и нарушениях, создавая подробные отчёты для анализа.  
 - **Динамическая статистика**:  
   Анализ данных помогает выявить проблемные зоны и оптимизировать управление чатом.
 
-### 🗄️ Надёжное хранение данных
+
 - **Использование SQLite**:  
   Легковесная база данных надёжно сохраняет настройки и логи, обеспечивая долгосрочное хранение данных.
 
-### 🔒 Конфиденциальность и безопасность
+
 - **Администрирование с защитой**:  
   Только администраторы имеют доступ к управлению ботом, а пользовательские данные защищены на всех этапах обработки. Это гарантирует высокий уровень безопасности.
 
-### 🛠️ Технические особенности
+
 - **Асинхронная работа**:  
   Бот обрабатывает множество запросов одновременно, что обеспечивает высокую производительность даже в крупных сообществах.  
 - **Интеграция с API и кэширование**:  
@@ -107,10 +106,10 @@ START_MESSAGE = """# 🤖 Великий Фильтр - Умный инстру�
 
 
 """
-WORDS_PER_PAGE = 5  # Количество слов на странице
+WORDS_PER_PAGE = 5  
 
 
-# Инициализация бота с использованием токенов
+
 bot = Client(
     "bot",
     api_id=api_id,
@@ -118,8 +117,8 @@ bot = Client(
     bot_token=bot_token,
 )
 
-# Добавляем после импортов
-SPAM_THRESHOLD = float(os.getenv("SPAM_THRESHOLD", "3"))  # Порог по умолчанию
+
+SPAM_THRESHOLD = float(os.getenv("SPAM_THRESHOLD", "3"))  
 waiting_for_word = defaultdict(bool)
 
 
@@ -185,17 +184,21 @@ async def remove_badword_handler(client: Client, callback_query: CallbackQuery):
     if not await check_is_admin_callback(client, callback_query):
         return
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> a53e11fce995d431be9bea2ffb0b994581498aac
     page = 0
     if "_" in callback_query.data:
         page = int(callback_query.data.split("_")[1])
 
     chat_id = callback_query.message.chat.id
 
-    # Получаем список слов для данного чата
+    
     words = db.get_chat_badwords(chat_id)
     total_pages = (len(words) - 1) // WORDS_PER_PAGE
 
-    # Формируем кнопки для текущей страницы
+    
     keyboard = []
     start_idx = page * WORDS_PER_PAGE
     end_idx = start_idx + WORDS_PER_PAGE
@@ -209,7 +212,7 @@ async def remove_badword_handler(client: Client, callback_query: CallbackQuery):
             ]
         )
 
-    # Добавляем кнопки навигации
+    
     nav_buttons = []
     if page > 0:
         nav_buttons.append(
@@ -222,7 +225,7 @@ async def remove_badword_handler(client: Client, callback_query: CallbackQuery):
     if nav_buttons:
         keyboard.append(nav_buttons)
 
-    # Добавляем кнопку возврата
+    
     keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="filter_settings")])
 
     markup = InlineKeyboardMarkup(keyboard)
@@ -244,14 +247,14 @@ async def delete_word_handler(client: Client, callback_query: CallbackQuery):
         _, chat_id, word = callback_query.data.split("_", 2)
         chat_id = int(chat_id)
 
-        # Удаляем слово из базы данных
+        
         db.cursor.execute(
             "DELETE FROM chat_badwords WHERE chat_id = ? AND word = ?", (chat_id, word)
         )
         db.connection.commit()
 
         await callback_query.answer(f"Слово '{word}' удалено!")
-        # Возвращаемся к списку слов
+        
         await remove_badword_handler(client, callback_query)
 
     except Exception as e:
@@ -268,11 +271,11 @@ async def ban_user_callback(client: Client, callback_query: CallbackQuery):
         chat_id = callback_query.message.chat.id
         target = await client.get_chat_member(chat_id, user_id)
 
-        # Проверяем, является ли пользователь администратором
+        
         if not await check_is_admin_callback(client, callback_query):
             return
 
-        # Баним пользователя, если его ID не равен исключенному
+        
         if user_id != 5957115070:
             if target.status.value in ["administrator", "owner"]:
                 await callback_query.answer(
@@ -302,7 +305,7 @@ async def callback_query(client: Client, callback_query: CallbackQuery):
     data = callback_query.data
     global filter_settings_markup
     if data == "stats":
-        # Получаем статистику
+        
         stats = db.get_stats(callback_query.message.chat.id)
         await callback_query.message.reply(
             f"📊 Статистика чата:\n\n"
@@ -346,11 +349,15 @@ async def callback_query(client: Client, callback_query: CallbackQuery):
                 "Вы не являетесь администратором или основателем!", show_alert=True
             )
     elif data == "delete":
-        # Проверка прав администратора
+        
         if not await check_is_admin_callback(client, callback_query):
             return
 
+<<<<<<< HEAD
         # Удаление сообщений
+=======
+        
+>>>>>>> a53e11fce995d431be9bea2ffb0b994581498aac
         messages_to_delete = [
             callback_query.message.reply_to_message.id,
             callback_query.message.id,
@@ -387,7 +394,7 @@ async def callback_query(client: Client, callback_query: CallbackQuery):
         )
 
     elif data == "autoclean_settings":
-        # Проверяем, включена ли автомодерация для этого чата
+        
         try:
             with open("autos.txt", "r", encoding="utf-8") as f:
                 autos = f.read().splitlines()
@@ -481,7 +488,7 @@ async def callback_query(client: Client, callback_query: CallbackQuery):
         )
 
 
-# Функция для проверки пользователя через FunStat API
+
 async def check_user(user_id: int | None = None) -> bool | Optional[str]:
     """
     Проверяет пользователя через FunStat API и сохраняет результаты в БД.
@@ -489,7 +496,7 @@ async def check_user(user_id: int | None = None) -> bool | Optional[str]:
     if not user_id:
         return
 
-    # Сначала проверяем, есть ли пользователь уже в БД
+    
     if db.is_user_verified(user_id):
         return True
 
@@ -518,7 +525,7 @@ async def check_user(user_id: int | None = None) -> bool | Optional[str]:
                 delta = now - first_msg_date
 
                 if delta >= datetime.timedelta(days=60):
-                    # Сохраняем данные о проверенном пользователе
+                    
                     user_data = {
                         "first_msg_date": first_msg_date_str,
                         "messages_count": result.get("messages_count", 0),
@@ -534,25 +541,25 @@ async def check_user(user_id: int | None = None) -> bool | Optional[str]:
         return False
 
 
-# Функция для чтения списка запрещенных слов из файла
+
 def get_keywords(chat_id: int = None) -> List[str]:
     """
     Читает список запрещенных слов.
     Если указан chat_id, добавляет к общему списку слова конкретного чата.
     """
     try:
-        # Получаем общий список слов
+        
         with open("bad_words.txt", "r", encoding="utf-8") as f:
             keywords = unidecode.unidecode(
                 f.read().lower().replace(" ", "")
             ).splitlines()
 
-        # Если указан chat_id, добавляем слова конкретного чата
+        
         if chat_id:
             chat_keywords = db.get_chat_badwords(chat_id)
             keywords.extend(chat_keywords)
 
-        # Удаляем дубликаты и пустые строки
+        
         return list(filter(None, set(keywords)))
     except Exception as e:
         logger.error(f"Error reading keywords: {e}")
@@ -572,10 +579,10 @@ async def add_badword(client, message: Message):
 
 @bot.on_message(filters.new_chat_members)
 async def on_new_member(client: Client, message: Message):
-    # Проверяем, был ли добавлен именно бот
+    
     for new_member in message.new_chat_members:
         if new_member.is_self:
-            # Отправляем сообщение, когда бот был добавлен в чат
+            
             await message.reply("Привет! Я был добавлен в этот чат. Чем могу помочь?")
             break
         if db.is_user_banned(new_member.id):
@@ -614,8 +621,9 @@ def highlight_banned_words(text: str, chat_id: int = None) -> str:
         return text
 
     try:
-        # Получаем список запрещенных слов
+        
         keywords = get_keywords(chat_id) or []
+<<<<<<< HEAD
 
         # Если нет запрещенных слов, возвращаем исходный текст
         if not keywords:
@@ -629,6 +637,21 @@ def highlight_banned_words(text: str, chat_id: int = None) -> str:
             return f"<{match.group(0)}>"
 
         # Выполняем замену с учетом регистра
+=======
+        
+        
+        if not keywords:
+            return text
+            
+        
+        pattern = r'\b(' + '|'.join(map(re.escape, keywords)) + r')\b'
+        
+        
+        def replace(match):
+            return f"<{match.group(0)}>"
+            
+        
+>>>>>>> a53e11fce995d431be9bea2ffb0b994581498aac
         result = re.sub(pattern, replace, text, flags=re.IGNORECASE)
 
         return result
@@ -642,13 +665,13 @@ def highlight_banned_words(text: str, chat_id: int = None) -> str:
 def get_special_patterns() -> List[str]:
     """Возвращает список скомпилированных регулярных выражений для специальных символов."""
     return [
-        r"[\u0500-\u052F]",  # Расширенная кириллица
-        r"[\u0180-\u024F]",  # Расширенная латиница
-        r"[\u1D00-\u1D7F]",  # Фонетические расширения
-        r"[\u1E00-\u1EFF]",  # Дополнительная латиница
-        r"[\u0300-\u036F]",  # Комбинируемые диакритические знаки
-        r"[\u1100-\u11FF]",  # Хангыль
-        r"[\uFF00-\uFFEF]",  # Полноширинные формы
+        r"[\u0500-\u052F]",  
+        r"[\u0180-\u024F]",  
+        r"[\u1D00-\u1D7F]",  
+        r"[\u1E00-\u1EFF]",  
+        r"[\u0300-\u036F]",  
+        r"[\u1100-\u11FF]",  
+        r"[\uFF00-\uFFEF]",  
     ]
 
 
@@ -664,21 +687,26 @@ def search_keywords(text: str, chat_id: int = None) -> bool:
         score = 0
         keywords = get_keywords(chat_id) or ["слово"]
 
-        # Преобразуем текст и ищем ключевые слова
+        
         normalized_text = unidecode.unidecode(text.lower())
         keyword_pattern = r"\b(" + "|".join(map(re.escape, keywords)) + r")\b"
         found_keywords = len(re.findall(keyword_pattern, normalized_text))
+<<<<<<< HEAD
 
         # Добавляем баллы за найденные ключевые слова
+=======
+        
+        
+>>>>>>> a53e11fce995d431be9bea2ffb0b994581498aac
         score += found_keywords
 
-        # Проверяем спец-символы
+        
         special_chars_found = 0
         for pattern in get_special_patterns():
             if re.search(pattern, text):
                 special_chars_found += 2
 
-        # Добавляем баллы за спец-символы
+        
         score += special_chars_found * 1.5
         return score >= SPAM_THRESHOLD
 
@@ -694,23 +722,23 @@ async def set_threshold(client: Client, message: Message):
         if not await check_is_admin(client, message):
             return
 
-        # Получаем новое значение порога
+        
         new_threshold = float(message.text.split()[1])
 
         if new_threshold <= 0:
             await message.reply("Порог должен быть положительным числом!")
             return
 
-        # Обновляем значение в памяти
+        
         global SPAM_THRESHOLD
         SPAM_THRESHOLD = new_threshold
 
-        # Читаем текущий .env файл
+        
         env_path = os.path.join(os.path.dirname(__file__), ".env")
         with open(env_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
-        # Обновляем или добавляем SPAM_THRESHOLD
+        
         threshold_line = f"SPAM_THRESHOLD={new_threshold}\n"
         threshold_found = False
 
@@ -723,7 +751,7 @@ async def set_threshold(client: Client, message: Message):
         if not threshold_found:
             lines.append(threshold_line)
 
-        # Записываем обновленный .env файл
+        
         with open(env_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
 
@@ -738,7 +766,7 @@ async def set_threshold(client: Client, message: Message):
         await message.reply(f"Ошибка при установке порога: {str(e)}")
 
 
-# Команда /start
+
 @bot.on_message(filters.text & filters.command(["start"]))
 async def start(client: Client, message: Message):
     await message.reply(START_MESSAGE)
@@ -747,17 +775,17 @@ async def start(client: Client, message: Message):
 @bot.on_message(filters.text & filters.command(["gen_regex"]))
 async def gen_regex(client: Client, message: Message):
     keywords = get_keywords() or ["слово"]
-    # Составляем регулярное выражение для поиска запрещенных слов
+    
     pattern = r"(" + "|".join(keywords) + r")"
     await message.reply(pattern)
 
 
 @bot.on_message(filters.text & filters.command(["invert"]))
 async def invert(client: Client, message: Message):
-    await message.reply(unidecode.unidecode(message.text.split("#")[1]))
+    await message.reply(unidecode.unidecode(message.text.split("")))
 
 
-# Команда /list - выводит список запрещенных слов
+
 @bot.on_message(filters.text & filters.command(["list"]))
 async def list_command(client: Client, message: Message) -> None:
     """Команда для вывода списка запрещенных слов."""
@@ -768,7 +796,7 @@ async def list_command(client: Client, message: Message) -> None:
         await message.reply("Ошибка при обработке запроса.")
 
 
-# Команда /check - проверяет пользователя через FunStat API
+
 @bot.on_message(filters.text & filters.command(["check"]))
 async def check_command(client: Client, message: Message) -> None:
     """Команда для проверки пользователя через FunStat API."""
@@ -781,7 +809,7 @@ async def check_command(client: Client, message: Message) -> None:
             user_id = int(user_id)
         result = (
             await check_user(user_id) or "Пользователь не найден."
-        )  # Проверяем пользователя через API
+        )  
         await message.reply(result)
     except IndexError:
         await message.reply("Укажите имя пользователя после команды.")
@@ -789,7 +817,46 @@ async def check_command(client: Client, message: Message) -> None:
         await message.reply(f"Ошибка при обработке запроса. {e}")
 
 
+<<<<<<< HEAD
 # Функция для создания кнопок с баном и отменой
+=======
+async def check_is_admin(client: Client, message: Message) -> bool:
+    """
+    Проверяет, что пользователь, отправивший сообщение, является админом или создателем.
+    Если нет — отправляет ответ и возвращает False.
+    """
+    user = await client.get_chat_member(message.chat.id, message.from_user.id)
+    message.from_user.restrictions
+    if not user.privileges:
+        msg = await message.reply(
+            f"Вы не являетесь администратором или основателем! {message.from_user.status.value}"
+        )
+        await asyncio.sleep(3.0)
+        await client.delete_messages(message.chat.id, [msg.id, message.id])
+
+        return False
+    return True
+
+
+async def check_is_admin_callback(
+    client: Client, callback_query: CallbackQuery
+) -> bool:
+    """
+    Проверяет, что пользователь, нажавший кнопку, является админом или создателем.
+    Если нет — отправляет ответ и возвращает False.
+    """
+    chat_id = callback_query.message.chat.id
+    chat_member = await client.get_chat_member(chat_id, callback_query.from_user.id)
+    if chat_member.status.value not in ["administrator", "owner"]:
+        await callback_query.answer(
+            "Вы не являетесь администратором или основателем!", show_alert=True
+        )
+        return False
+    return True
+
+
+
+>>>>>>> a53e11fce995d431be9bea2ffb0b994581498aac
 def ban_button(user_id: int, msg_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
@@ -843,7 +910,7 @@ async def remove_autos(client: Client, message: Message):
     await message.reply("Авто удалено!")
 
 
-# Основная логика для обработки текстовых сообщений
+
 @bot.on_message(filters.text & ~filters.channel & ~filters.bot)
 async def main(client: Client, message: Message) -> None:
     """
@@ -851,16 +918,22 @@ async def main(client: Client, message: Message) -> None:
     Если слова найдены, удаляет сообщение и логирует.
     """
     try:
+<<<<<<< HEAD
         # Проверяем, ожидается ли слово от этого пользователя
         if waiting_for_word.get(message.from_user.id):
             # Добавляем слово в файл
+=======
+        
+        if waiting_for_word[message.from_user.id]:
+            
+>>>>>>> a53e11fce995d431be9bea2ffb0b994581498aac
             word = message.text.strip()
             chat_id = message.chat.id
 
-            # Добавляем слово в базу данных для конкретного чата
+            
             success = db.add_chat_badword(chat_id, word, message.from_user.id)
 
-            # Сбрасываем состояние ожидания
+            
             waiting_for_word[message.from_user.id] = False
             global filter_settings_markup
             if success:
@@ -872,7 +945,7 @@ async def main(client: Client, message: Message) -> None:
                 await message.reply("❌ Ошибка при добавлении слова")
             return
 
-        # Читаем список автомодерации
+        
         try:
             with open("autos.txt", "r", encoding="utf-8") as f:
                 autos = f.read().splitlines()
@@ -893,14 +966,21 @@ async def main(client: Client, message: Message) -> None:
                     (chat_id, chat_title or "Неизвестный чат"),
                 )
                 db.connection.commit()
+<<<<<<< HEAD
 
         # Перед сохранением сообщения добавляем:
+=======
+        
+        if db.is_user_banned(message.from_user.id):
+            await message.delete()
+        
+>>>>>>> a53e11fce995d431be9bea2ffb0b994581498aac
         ensure_chat_exists(message.chat.id, message.chat.title)
-        # Сохраняем сообщение в БД
-        # Проверяем наличие спама
+        
+        
         is_spam = search_keywords(text, message.chat.id)
 
-        # Сохраняем сообщение в БД
+        
         db.add_user(
             user_id=message.from_user.id,
             first_name=message.from_user.first_name,
@@ -913,15 +993,22 @@ async def main(client: Client, message: Message) -> None:
             is_spam,
         )
         if is_spam:
+<<<<<<< HEAD
             if not await check_user(
                 message.from_user.id if message.from_user.id != 5957115070 else None
             ):
+=======
+            is_user_valid = await check_user(message.from_user.id if message.from_user.id != 5957115070 else None)
+
+            
+            if is_user_valid == "False" and message.from_user.id != 5957115070:
+>>>>>>> a53e11fce995d431be9bea2ffb0b994581498aac
                 return
 
             await message.forward("amnesiawho1")
             if len(message.text) > 1000:
                 return
-            # Проверяем режим автомодерации для чата
+            
             if str(message.chat.id) in autos:
                 await message.delete()
             else:
@@ -937,12 +1024,12 @@ async def main(client: Client, message: Message) -> None:
         logger.exception(f"Error processing message: {e}")
 
 
-# Запуск бота
-if __name__ == "__main__":
-    start_time = time.time()  # Засекаем время старта бота
-    bot.run()  # Запускаем бота
 
-    # Логируем время работы бота
+if __name__ == "__main__":
+    start_time = time.time()  
+    bot.run()  
+
+    
     total_time = round(time.time() - start_time, 2)
     logger.info(
         f"Total uptime {total_time if total_time < 3600 else int(total_time / 60)} seconds. Bot stopped."

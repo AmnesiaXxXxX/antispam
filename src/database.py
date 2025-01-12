@@ -1,6 +1,6 @@
 import sqlite3
 from datetime import datetime
-from logger_config import logger
+from src.utils.logger_config import logger
 import unidecode
 import re
 
@@ -114,18 +114,19 @@ class Database:
         users: bool = False,
         banned: bool = False,
     ):
+        # Выполняем вставку или обновление значений
         self.cursor.execute(
             """
-        INSERT INTO statistics (chat_id, total_messages, deleted_messages, 
-                              total_users, banned_users, last_updated)
-        VALUES (?, 0, 0, 0, 0, CURRENT_TIMESTAMP)
-        ON CONFLICT(chat_id) DO UPDATE SET
-            total_messages = total_messages + ?,
-            deleted_messages = deleted_messages + ?,
-            total_users = total_users + ?,
-            banned_users = banned_users + ?,
-            last_updated = CURRENT_TIMESTAMP
-        """,
+            INSERT INTO statistics (chat_id, total_messages, deleted_messages, 
+                                    total_users, banned_users, last_updated)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(chat_id) DO UPDATE SET
+                total_messages = total_messages + EXCLUDED.total_messages,
+                deleted_messages = deleted_messages + EXCLUDED.deleted_messages,
+                total_users = total_users + EXCLUDED.total_users,
+                banned_users = banned_users + EXCLUDED.banned_users,
+                last_updated = CURRENT_TIMESTAMP
+            """,
             (
                 chat_id,
                 1 if messages else 0,
@@ -136,7 +137,7 @@ class Database:
         )
         self.connection.commit()
 
-    def get_stats(self, chat_id: int):
+    def get_stats(self, chat_id):
         self.cursor.execute(
             """
         SELECT total_messages, deleted_messages, 
@@ -148,14 +149,14 @@ class Database:
         )
         return self.cursor.fetchone() or (0, 0, 0, 0)
 
-    def add_chat(self, chat_id: int, title: str):
+    def add_chat(self, chat_id: int, title):
         self.cursor.execute(
             "INSERT OR IGNORE INTO chats (chat_id, title, join_date) VALUES (?, ?, ?)",
             (chat_id, title, datetime.now()),
         )
         self.connection.commit()
 
-    def remove_chat(self, chat_id: int):
+    def remove_chat(self, chat_id):
         self.cursor.execute(
             "UPDATE chats SET is_active = 0 WHERE chat_id = ?", (chat_id,)
         )
@@ -165,7 +166,7 @@ class Database:
         self.cursor.execute("SELECT chat_id, title FROM chats WHERE is_active = 1")
         return self.cursor.fetchall()
 
-    def add_message(self, chat_id: int, user_id: int, message_text: str, is_spam: bool):
+    def add_message(self, chat_id: int, user_id: int, message_text: str, is_spam):
         self.cursor.execute(
             """
         INSERT INTO messages (chat_id, user_id, message_text, timestamp, is_spam)
@@ -175,7 +176,7 @@ class Database:
         )
         self.connection.commit()
 
-    def add_chat_badword(self, chat_id: int, word: str, added_by: int) -> bool:
+    def add_chat_badword(self, chat_id: int, word: str, added_by) -> bool:
         """Добавляет запрещенное слово для конкретного чата"""
 
         def is_regex_pattern(s):
@@ -203,14 +204,14 @@ class Database:
             logger.error(f"Error adding bad word: {e}")
             return False
 
-    def get_chat_badwords(self, chat_id: int) -> list[str]:
+    def get_chat_badwords(self, chat_id) -> list[str]:
         """Получает список запрещенных слов для конкретного чата"""
         self.cursor.execute(
             "SELECT word FROM chat_badwords WHERE chat_id = ?", (chat_id,)
         )
         return [row[0] for row in self.cursor.fetchall()]
 
-    def add_verified_user(self, user_id: int, user_data: dict) -> bool:
+    def add_verified_user(self, user_id: int, user_data) -> bool:
         """Добавляет проверенного пользователя в базу данных"""
         try:
             self.cursor.execute(
@@ -235,7 +236,7 @@ class Database:
             logger.error(f"Error adding verified user: {e}")
             return False
 
-    def is_user_verified(self, user_id: int) -> bool:
+    def is_user_verified(self, user_id) -> bool:
         """
         Проверяет, является ли пользователь проверенным
         """
@@ -265,7 +266,7 @@ class Database:
             logger.error(f"Error adding user: {e}")
             return False
 
-    def add_spam_warning(self, user_id: int, chat_id: int, message_text: str) -> bool:
+    def add_spam_warning(self, user_id: int, chat_id: int, message_text) -> bool:
         """Добавляет предупреждение о спаме и проверяет количество нарушений"""
         try:
             self.cursor.execute(
@@ -302,7 +303,7 @@ class Database:
         """)
         return self.cursor.fetchall()
 
-    def confirm_ban(self, user_id: int) -> bool:
+    def confirm_ban(self, user_id) -> bool:
         """Подтверждает бан пользователя администратором"""
         try:
             self.cursor.execute(
@@ -319,7 +320,7 @@ class Database:
             logger.error(f"Error confirming ban: {e}")
             return False
 
-    def reject_ban(self, user_id: int) -> bool:
+    def reject_ban(self, user_id) -> bool:
         """Отклоняет бан пользователя"""
         try:
             self.cursor.execute(
@@ -336,8 +337,11 @@ class Database:
             logger.error(f"Error rejecting ban: {e}")
             return False
 
-    def is_user_banned(self, user_id: int) -> bool:
+    def is_user_banned(self, user_id) -> bool:
         """Проверяет, забанен ли пользователь"""
         self.cursor.execute("SELECT is_banned FROM users WHERE user_id = ?", (user_id,))
         result = self.cursor.fetchone()
         return bool(result and result[0])
+
+
+db = Database("antispam.db")

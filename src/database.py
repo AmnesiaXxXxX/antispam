@@ -106,6 +106,10 @@ class Database:
 
         self.connection.commit()
 
+    def get_admins(self):
+        self.cursor.execute("SELECT user_id FROM users WHERE admin = 1")
+        return [row[0] for row in self.cursor.fetchall()]
+    
     def update_stats(
         self,
         chat_id: int,

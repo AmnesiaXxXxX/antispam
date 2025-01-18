@@ -1,8 +1,12 @@
 import pyrogram.errors
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
 from src.constants import WORDS_PER_PAGE, waiting_for_word
-from src.markups.markups import get_filter_settings_button, get_main_menu
+from src.markups.markups import (
+    get_filter_settings_button,
+    get_main_menu,
+    get_settings_button,
+)
 from src.functions.functions import check_is_admin_callback
 from src.database import db
 from src.utils.logger_config import logger
@@ -115,9 +119,8 @@ async def ban_user_callback(client, callback_query):
         )
 
 
-async def callback_query(client, callback_query):
+async def stats_callback(client, callback_query: CallbackQuery):
     data = callback_query.data
-    message = callback_query.message
     if data == "stats":
         stats = db.get_stats(callback_query.message.chat.id)
         await callback_query.message.edit_text(
@@ -134,11 +137,25 @@ async def callback_query(client, callback_query):
                 ]
             ),
         )
-    elif data == "exit":
+
+
+async def exit_callback(client, callback_query: CallbackQuery):
+    data = callback_query.data
+    message = callback_query.message
+    if data == "exit":
         if message.reply_to_message:
             await message.reply_to_message.delete()
         await message.delete()
-    elif data == "list_badwords":
+
+
+async def list_badwords_callback(client, callback_query: CallbackQuery):
+    """
+    Callback for the "list_badwords" button.
+
+    Shows a list of badwords for the current chat.
+    """
+    data = callback_query.data
+    if data == "list_badwords":
         chat_id = callback_query.message.chat.id
         words = db.get_chat_badwords(chat_id)
         if not words:
@@ -156,7 +173,11 @@ async def callback_query(client, callback_query):
                     [[InlineKeyboardButton("◀️ Назад", callback_data="filter_settings")]]
                 ),
             )
-    elif data == "cancel":
+
+
+async def cancel_callback(client, callback_query: CallbackQuery):
+    data = callback_query.data
+    if data == "cancel":
         chat_id = callback_query.message.chat.id
         try:
             chat_member = (
@@ -176,7 +197,11 @@ async def callback_query(client, callback_query):
             await callback_query.answer(
                 "Вы не являетесь участником чата", show_alert=True
             )
-    elif data == "delete":
+
+
+async def delete_callback(client, callback_query: CallbackQuery):
+    data = callback_query.data
+    if data == "delete":
         if not await check_is_admin_callback(client, callback_query):
             await callback_query.answer(
                 "У вас нет прав для выполнения этого действия!", show_alert=True
@@ -193,32 +218,27 @@ async def callback_query(client, callback_query):
         logger.info(
             f"Messages {messages_to_delete} deleted in chat {callback_query.message.chat.id}"
         )
-    elif data == "settings":
-        settings_markup = InlineKeyboardMarkup(
-            [
-                [
-                    InlineKeyboardButton(
-                        "🔍 Настройки фильтрации", callback_data="filter_settings"
-                    )
-                ],
-                [
-                    InlineKeyboardButton(
-                        "⏰ Автоочистка", callback_data="autoclean_settings"
-                    )
-                ],
-                [InlineKeyboardButton("◀️ Назад", callback_data="back_to_main")],
-            ]
-        )
+
+
+async def settings_callback(client, callback_query: CallbackQuery):
+    data = callback_query.data
+    if data == "settings":
         await callback_query.message.edit_text(
-            "⚙️ Настройки бота:", reply_markup=settings_markup
+            "⚙️ Настройки бота:", reply_markup=get_settings_button()
         )
 
-    elif data == "back_to_main":
+
+async def back_to_main_callback(client, callback_query: CallbackQuery):
+    data = callback_query.data
+    if data == "back_to_main":
         await callback_query.message.edit_text(
             "🔧 Главное меню настроек бота:", reply_markup=get_main_menu()
         )
 
-    elif data == "autoclean_settings":
+
+async def autoclean_settings_callback(client, callback_query: CallbackQuery):
+    data = callback_query.data
+    if data == "autoclean_settings":
         try:
             with open("autos.txt", "r", encoding="utf-8") as f:
                 autos = f.read().splitlines()
@@ -247,7 +267,11 @@ async def callback_query(client, callback_query):
             reply_markup=autoclean_markup,
         )
 
-    elif data == "toggle_autoclean":
+
+async def toggle_autoclean_callback(client, callback_query: CallbackQuery):
+    data = callback_query.data
+
+    if data == "toggle_autoclean":
         if not await check_is_admin_callback(client, callback_query):
             return
 
@@ -287,12 +311,18 @@ async def callback_query(client, callback_query):
         )
         # await callback_query.answer(f"Автомодерация {status}!")
         await callback_query.answer()
-    elif data == "filter_settings":
+
+
+async def filter_settings_callback(client, callback_query: CallbackQuery):
+    data = callback_query.data
+
+    if data == "filter_settings":
         await callback_query.message.edit_text(
             "⚙️ Настройки фильтрации:", reply_markup=get_filter_settings_button()
         )
 
-    elif data == "add_badword":
+
+async def add_badword_callback(client, callback_query: CallbackQuery):
         if not await check_is_admin_callback(client, callback_query):
             return
 
@@ -305,7 +335,11 @@ async def callback_query(client, callback_query):
             ),
         )
 
-    elif data == "cancel_add_word":
+
+async def cancel_add_word_callback(client, callback_query: CallbackQuery):
+    data = callback_query.data
+
+    if data == "cancel_add_word":
         waiting_for_word[callback_query.from_user.id] = False
 
         await callback_query.message.edit_text(

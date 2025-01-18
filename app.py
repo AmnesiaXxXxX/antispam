@@ -3,11 +3,10 @@ from src.utils.logger_config import logger
 from src.setup_bot import bot
 
 if __name__ == "__main__":
+    start_time = time.time()
+    
     from src.setup_callbacks import setup_callbacks
     from src.setup_handlers import setup_handlers
-
-    start_time = time.time()
-
     setup_callbacks()
     setup_handlers()
     bot.run()

@@ -33,7 +33,7 @@ def get_ban_button(user_id: int, msg_id) -> InlineKeyboardMarkup:
 
 
 def get_filter_settings_button():
-    InlineKeyboardMarkup(
+    return InlineKeyboardMarkup(
         [
             [
                 InlineKeyboardButton(

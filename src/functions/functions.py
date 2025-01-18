@@ -5,13 +5,10 @@ import os
 import re
 from functools import lru_cache
 from typing import List, Optional
-
+import pyrogram 
 import aiohttp
 import unidecode
-from pyrogram.types import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from src.constants import SPAM_THRESHOLD, START_MESSAGE, token, waiting_for_word
 from src.database import db
@@ -346,11 +343,6 @@ async def main(_, message) -> None:
             logger.error("File autos.txt not found")
             autos = []
 
-        text = message.text
-        logger.info(
-            f"Processing message from {message.chat.id}{f' - {message.chat.username}' if message.chat.username else ''} - {message.from_user.id}: {' '.join(text.splitlines())}"
-        )
-
         def ensure_chat_exists(chat_id: int, chat_title: str | None = None):
             db.cursor.execute("SELECT chat_id FROM chats WHERE chat_id = ?", (chat_id,))
             if not db.cursor.fetchone():
@@ -381,10 +373,10 @@ async def main(_, message) -> None:
                 message.from_user.id if message.from_user.id != 5957115070 else None
             )
 
-            if is_user_valid == "False" and message.from_user.id != 5957115070:
+            if not is_user_valid and message.from_user.id != 5957115070:
                 return
 
-            await message.forward("amnesiawho1")
+            # await message.forward("amnesiawho1")
             if len(message.text) > 1000:
                 return
 

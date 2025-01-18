@@ -345,3 +345,5 @@ class Database:
 
 
 db = Database("antispam.db")
+
+

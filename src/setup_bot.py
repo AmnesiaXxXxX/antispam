@@ -10,6 +10,5 @@ def setup_bot():
         api_hash=api_hash,
         bot_token=bot_token,
     )
-
-
+    
 bot = setup_bot()

@@ -9,6 +9,7 @@ from src.functions.callbacks import (
 )
 from src.setup_bot import bot
 
+
 def setup_callbacks():
     """
     Sets up callback query handlers for the bot. Registers handlers for various

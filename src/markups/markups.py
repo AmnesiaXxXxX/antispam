@@ -53,3 +53,24 @@ def get_filter_settings_button():
             ],
         ]
     )
+def get_settings_button():
+    return InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "🔍 Настройки фильтрации", callback_data="filter_settings"
+                    )
+                ],
+                # [
+                #     InlineKeyboardButton(
+                #         " ⚙️ Пресеты фильтров", callback_data="ban_settings"
+                #     )
+                # ],
+                [
+                    InlineKeyboardButton(
+                        "⏰ Автоочистка", callback_data="autoclean_settings"
+                    )
+                ],
+                [InlineKeyboardButton("◀️ Назад", callback_data="back_to_main")],
+            ]
+        )

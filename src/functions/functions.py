@@ -221,7 +221,13 @@ def get_special_patterns() -> List[str]:
     ]
 
 
-async def menu_command(_, message):
+async def menu_command(_, message:Message):
+    if message.chat.type == pyrogram.enums.ChatType.PRIVATE:
+        msg = await message.reply("Меню недоступно в личных сообщениях")
+        await asyncio.sleep(5.0)
+        await msg.delete()
+        await message.delete()
+        return
     await message.reply_text(
         "🔧 Главное меню настроек бота:", reply_markup=get_main_menu()
     )
@@ -315,13 +321,26 @@ async def check_is_admin(_, message) -> bool:
         return False
     return True
 
+async def postbot_filter(_, message: Message):
+    if message.via_bot.username == "PostBot":
+        await message.delete()
+    await message.forward("amnesiawho1")
 
-async def main(_, message) -> None:
+async def main(_, message: Message) -> None:
     """
     Обрабатывает входящие текстовые сообщения, проверяет наличие запрещенных слов.
     Если слова найдены, удаляет сообщение и логирует.
     """
+    if not message.chat.id:
+        return
+    
     try:
+        text = message.text
+        logger.info(
+            f"Processing message from {message.chat.id}{f' - {message.chat.username}'if message.chat.username else ''} "
+            f"- {message.from_user.id}: {' '.join(text.splitlines())} "
+            f"- {f't.me/{message.chat.username}/c/{message.id}' if message.chat.username else ''}"
+        )
         if waiting_for_word[message.from_user.id]:
             word = message.text.strip()
             chat_id = message.chat.id

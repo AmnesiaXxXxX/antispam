@@ -95,6 +95,12 @@ class Database:
             FOREIGN KEY (user_id) REFERENCES users (user_id),
             FOREIGN KEY (chat_id) REFERENCES chats (chat_id)
         )""")
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS banwords_preset (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            words TEXT,
+            name TEXT
+        )""")
 
         # Добавляем индексы для оптимизации
         self.cursor.execute(

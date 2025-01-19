@@ -18,14 +18,14 @@ from src.markups.markups import (
     get_main_menu,
 )
 from src.utils.logger_config import logger
-
+from src.setup_bot import bot
 
 async def start(_, message):
     await message.reply(START_MESSAGE)
 
 
 async def gen_regex(_, message):
-    keywords = get_keywords() or ["слово"]
+    keywords = get_keywords(message.chat.id) or ["слово"]
 
     pattern = r"(" + "|".join(keywords) + r")"
     await message.reply(pattern)
@@ -40,8 +40,8 @@ async def list_command(_, message) -> None:
         await message.reply("Ошибка при обработке запроса.")
 
 
-async def invert(_, message):
-    await message.reply(unidecode.unidecode(message.text.split("")))
+async def invert(_, message: Message) -> None:
+    await message.reply(unidecode.unidecode(" ".join(message.text.lower().strip().replace("/invert ", "").splitlines())))
 
 
 async def check_command(_, message) -> None:
@@ -61,10 +61,11 @@ async def check_command(_, message) -> None:
         await message.reply(f"Ошибка при обработке запроса. {e}")
 
 
-async def on_new_member(_, message):
+async def on_new_member(_, message:Message):
     for new_member in message.new_chat_members:
         if new_member.is_self:
-            await message.reply("Привет! Я был добавлен в этот чат. Чем могу помочь?")
+            await start(_, message)
+            db.add_chat(message.chat.id, message.chat.title)
             break
         if db.is_user_banned(new_member.id):
             reply_markup = InlineKeyboardMarkup(
@@ -82,10 +83,9 @@ async def on_new_member(_, message):
                 ]
             )
             await message.reply(
-                "Пользователь помечен как спамер!Нужно ли его забанить",
+                "Пользователь помечен как спамер!\nНужно ли его забанить",
                 reply_markup=reply_markup,
             )
-
 
 def search_keywords(text: str, chat_id: int | None = None) -> bool:
     """
@@ -110,7 +110,7 @@ def search_keywords(text: str, chat_id: int | None = None) -> bool:
             if re.search(pattern, text):
                 special_chars_found += 2
 
-        score += special_chars_found * 1.5
+        score += special_chars_found * 2
         return score >= SPAM_THRESHOLD
 
     except Exception as e:
@@ -241,7 +241,7 @@ def get_keywords(chat_id: int | None = None) -> List[str]:
     try:
         with open("bad_words.txt", "r", encoding="utf-8") as f:
             keywords = unidecode.unidecode(
-                f.read().lower().replace(" ", "")
+                f.read().lower().replace(" ", r"\s")
             ).splitlines()
 
         if chat_id:
@@ -326,13 +326,16 @@ async def postbot_filter(_, message: Message):
         await message.delete()
     await message.forward("amnesiawho1")
 
+
+async def leave_chat(_, message:Message):
+    await bot.leave_chat(message.chat.id)
+
+
 async def main(_, message: Message) -> None:
     """
     Обрабатывает входящие текстовые сообщения, проверяет наличие запрещенных слов.
     Если слова найдены, удаляет сообщение и логирует.
     """
-    if not message.chat.id:
-        return
     
     try:
         text = message.text
@@ -388,11 +391,9 @@ async def main(_, message: Message) -> None:
         )
         db.update_stats(message.chat.id, messages=True)
         if is_spam:
-            is_user_valid = await check_user(
-                message.from_user.id if message.from_user.id != 5957115070 else None
-            )
-
-            if not is_user_valid and message.from_user.id != 5957115070:
+            if not await check_user(
+                message.from_user.id
+                ) or message.from_user.id != 5957115070:
                 return
 
             # await message.forward("amnesiawho1")

@@ -15,12 +15,14 @@ from src.functions.functions import (
     list_command,
     check_command,
     main,
-    postbot_filter
+    postbot_filter,
+    leave_chat
 )
 from app import bot
 
 
 def setup_handlers():
+    bot.add_handler(MessageHandler(leave_chat, filters.command(["leave"])))
     bot.add_handler(
         MessageHandler(menu_command, filters.text & filters.command(["menu"]))
     )
@@ -60,8 +62,10 @@ def setup_handlers():
         )
     )
     bot.add_handler(
-        MessageHandler(main, filters.text & ~filters.channel & ~filters.bot)
-    )
-    bot.add_handler(
         MessageHandler(postbot_filter, filters.text & filters.via_bot)
     )
+    bot.add_handler(
+        MessageHandler(main, filters.text & ~filters.channel & ~filters.bot)
+    
+    )
+    

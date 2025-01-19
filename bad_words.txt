@@ -27,12 +27,18 @@ oтшлёпаeт
 NFT
 LFG
 BASE
-hurry\sup
+hurry up
 asap
 blockchain
 grab
-Быстрый\s(.+)\sот\s\d+\sв\sДень,\sтут\shttps:\/\/t\.me\/(\w+)
 доход
 быстрый
-тг\sпрем\w+
+тг прем\w+
 раздача
+tem
+зарабатывать
+https:\/\/(\w+)\.(\w+)\/\w+
+O⁢P⁢⁢E⁢N⁢S⁢E⁢A
+N⁢⁢F⁢T
+t⁢o⁢k⁢e⁢n
+(go fast)

@@ -219,7 +219,7 @@ class Database:
         self.cursor.execute(
             "SELECT word FROM chat_badwords WHERE chat_id = ?", (chat_id,)
         )
-        return [row[0] for row in self.cursor.fetchall()]
+        return [row[0].lower().replace(" ", "") for row in self.cursor.fetchall()]
 
     def add_verified_user(self, user_id: int, user_data) -> bool:
         """Добавляет проверенного пользователя в базу данных"""

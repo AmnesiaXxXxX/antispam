@@ -6,6 +6,5 @@ antispam.*
 *.db
 *.txt
 __pycache__/
-bad_words.txt
 .vscode
 .sh

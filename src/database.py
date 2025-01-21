@@ -221,6 +221,16 @@ class Database:
         )
         return [row[0].lower().replace(" ", "") for row in self.cursor.fetchall()]
 
+    def get_user(self, user_id) -> dict | None:
+        self.cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        return self.cursor.fetchone()
+    
+    def get_user_messages_count(self, user_id) -> int:
+        self.cursor.execute(
+            "SELECT COUNT(*) FROM messages WHERE user_id =?", (user_id,)
+        )
+        return self.cursor.fetchone()[0]
+    
     def add_verified_user(self, user_id: int, user_data) -> bool:
         """Добавляет проверенного пользователя в базу данных"""
         try:
@@ -307,9 +317,9 @@ class Database:
     def get_pending_bans(self) -> list:
         """Получает список пользователей, ожидающих бана"""
         self.cursor.execute("""
-        SELECT user_id, first_name, username, spam_count 
+        SELECT user_id
         FROM users 
-        WHERE ban_pending = 1 AND is_banned = 0
+        WHERE spam_count >= 3 and admin = 0
         """)
         return self.cursor.fetchall()
 

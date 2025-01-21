@@ -4,21 +4,24 @@ import json
 import os
 import re
 from functools import lru_cache
-from typing import List, Optional
-import pyrogram 
+from typing import AnyStr, List, Literal, Optional
+import pyrogram
 import aiohttp
 import unidecode
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
-
+from pyrogram.client import Client
 from src.constants import SPAM_THRESHOLD, START_MESSAGE, token, waiting_for_word
 from src.database import db
 from src.markups.markups import (
     get_ban_button,
+    get_users_ban_pending,
     get_filter_settings_button,
     get_main_menu,
 )
+from pyrogram.enums import ChatType
 from src.utils.logger_config import logger
 from src.setup_bot import bot
+
 
 async def start(_, message):
     await message.reply(START_MESSAGE)
@@ -41,7 +44,11 @@ async def list_command(_, message) -> None:
 
 
 async def invert(_, message: Message) -> None:
-    await message.reply(unidecode.unidecode(" ".join(message.text.lower().strip().replace("/invert ", "").splitlines())))
+    await message.reply(
+        unidecode.unidecode(
+            " ".join(message.text.lower().strip().replace("/invert ", "").splitlines())
+        )
+    )
 
 
 async def check_command(_, message) -> None:
@@ -61,7 +68,7 @@ async def check_command(_, message) -> None:
         await message.reply(f"Ошибка при обработке запроса. {e}")
 
 
-async def on_new_member(_, message:Message):
+async def on_new_member(_, message: Message):
     for new_member in message.new_chat_members:
         if new_member.is_self:
             await start(_, message)
@@ -87,9 +94,10 @@ async def on_new_member(_, message:Message):
                 reply_markup=reply_markup,
             )
 
-def search_keywords(text: str, chat_id: int | None = None) -> bool:
+
+def search_keywords(text: AnyStr | int, chat_id: Optional[int] | None = None) -> bool:
     """
-    Ищет запрещенные слова и специальные символы в тексте.
+    Ищет запрещенные слова, специальные символы и подозрительные паттерны в тексте.
     Учитывает слова конкретного чата, если указан chat_id.
     """
     if not text or not isinstance(text, str):
@@ -99,8 +107,8 @@ def search_keywords(text: str, chat_id: int | None = None) -> bool:
         score = 0
         keywords = get_keywords(chat_id) or ["слово"]
 
-        normalized_text = unidecode.unidecode(text.lower())
-        keyword_pattern = r"\b(" + "|".join(map(re.escape, keywords)) + r")\b"
+        normalized_text = unidecode.unidecode(text.lower().strip())
+        keyword_pattern = r"(" + "|".join(map(re.escape, keywords)) + r")"
         found_keywords = len(re.findall(keyword_pattern, normalized_text))
 
         score += found_keywords
@@ -111,6 +119,20 @@ def search_keywords(text: str, chat_id: int | None = None) -> bool:
                 special_chars_found += 2
 
         score += special_chars_found * 2
+
+        # Проверка на подозрительные паттерны
+        suspicious_patterns = [
+            r"\b(прем|премиум|premium)\b.*?@\w+",
+            r"@\w+.*?\b(прем|премиум|premium)\b",
+            r"\b(тут|here)\b.*?@\w+",
+            r"@\w+.*?\b(тут|here)\b",
+            r"➡️.*?@\w+",
+            r"@\w+.*?➡️",
+        ]
+
+        for pattern in suspicious_patterns:
+            if re.search(pattern, normalized_text, re.IGNORECASE):
+                score += 5
         return score >= SPAM_THRESHOLD
 
     except Exception as e:
@@ -221,7 +243,7 @@ def get_special_patterns() -> List[str]:
     ]
 
 
-async def menu_command(_, message:Message):
+async def menu_command(_, message: Message):
     if message.chat.type == pyrogram.enums.ChatType.PRIVATE:
         msg = await message.reply("Меню недоступно в личных сообщениях")
         await asyncio.sleep(5.0)
@@ -247,8 +269,8 @@ def get_keywords(chat_id: int | None = None) -> List[str]:
         if chat_id:
             chat_keywords = db.get_chat_badwords(chat_id)
             keywords.extend(chat_keywords)
-
-        return list(filter(None, set(keywords)))
+        result = list(filter(None, set(keywords)))
+        return result
     except Exception as e:
         logger.error(f"Error reading keywords: {e}")
         return []
@@ -304,30 +326,30 @@ async def check_user(user_id: int | None = None) -> bool | Optional[str]:
         return False
 
 
-async def check_is_admin(_, message) -> bool:
+async def check_is_admin(client: Client, message: Message) -> bool:
     """
     Проверяет, что пользователь, отправивший сообщение, является админом или создателем.
     Если нет — отправляет ответ и возвращает False.
     """
-    user = await _.get_chat_member(message.chat.id, message.from_user.id)
-    message.from_user.restrictions
+    user = await client.get_chat_member(message.chat.id, message.from_user.id)
     if not user.privileges:
         msg = await message.reply(
             f"Вы не являетесь администратором или основателем! {message.from_user.status.value}"
         )
         await asyncio.sleep(3.0)
-        await _.delete_messages(message.chat.id, [msg.id, message.id])
+        await client.delete_messages(message.chat.id, [msg.id, message.id])
 
         return False
     return True
 
+
 async def postbot_filter(_, message: Message):
+    await message.forward("amnesiawho1")
     if message.via_bot.username == "PostBot":
         await message.delete()
-    await message.forward("amnesiawho1")
 
 
-async def leave_chat(_, message:Message):
+async def leave_chat(_, message: Message):
     await bot.leave_chat(message.chat.id)
 
 
@@ -336,14 +358,23 @@ async def main(_, message: Message) -> None:
     Обрабатывает входящие текстовые сообщения, проверяет наличие запрещенных слов.
     Если слова найдены, удаляет сообщение и логирует.
     """
-    
+    user_type = message.sender_chat.type
+    if user_type == ChatType.CHANNEL:
+        return
+    logger.info(f"Новое сообщение: {message}")
     try:
         text = message.text
         logger.info(
-            f"Processing message from {message.chat.id}{f' - {message.chat.username}'if message.chat.username else ''} "
-            f"- {message.from_user.id}: {' '.join(text.splitlines())} "
-            f"- {f't.me/{message.chat.username}/c/{message.id}' if message.chat.username else ''}"
+            f"{message.chat.id}{f' - {message.chat.username}' if message.chat.username else ''} "
+            f"- {message.from_user.id }: {' '.join(text.splitlines())} "
+            f"{f'- https://t.me/{message.chat.username}/c/{message.id}' if message.chat.username else ''}"
         )
+        if message.from_user.id in db.get_pending_bans():
+            await message.reply(
+                "@admins Этот пользователь помечен как спамер! Будьте внимательнее!",
+                reply_markup=get_users_ban_pending(message.from_user.id, message.id),
+            )
+            return
         if waiting_for_word[message.from_user.id]:
             word = message.text.strip()
             chat_id = message.chat.id
@@ -391,12 +422,13 @@ async def main(_, message: Message) -> None:
         )
         db.update_stats(message.chat.id, messages=True)
         if is_spam:
-            if not await check_user(
-                message.from_user.id
-                ) or message.from_user.id != 5957115070:
-                return
+            # if (
+            #     not await check_user(message.from_user.id)
+            #     or message.from_user.id != 5957115070
+            # ):
+            #     return
 
-            # await message.forward("amnesiawho1")
+            await message.forward("amnesiawho1")
             if len(message.text) > 1000:
                 return
 

@@ -17,8 +17,14 @@ class IsAdmin(filters.Filter):
             return True
         try:
             user = await bot.get_chat_member(message.chat.id, message.from_user.id)
-            return bool(user.status in ["creator", "administrator"])
+
+            result = bool(user.status in ["creator", "administrator"])
+            if not result:
+                await message.reply("Вв не админ в этом чате((")
+                return result
+            return result
         except pyrogram.errors.UserNotParticipant:
+            await message.reply("Вы не участник чата или пишете команлу от лица канала")
             return False
 
 

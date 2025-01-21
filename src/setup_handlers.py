@@ -43,22 +43,22 @@ def setup_handlers():
     bot.add_handler(MessageHandler(invert, filters.text & filters.command(["invert"])))
     bot.add_handler(
         MessageHandler(gen_regex, filters.text & filters.command(["gen_regex"]))
-    )
+s_admin.is_admin    )
     bot.add_handler(
-        MessageHandler(list_command, filters.text & filters.command(["list"]))
+        MessageHandler(list_command, filters.text & filters.command(["list"]) & is_admin.is_admin)
     )
     bot.add_handler(
         MessageHandler(check_command, filters.text & filters.command(["check"]))
     )
     bot.add_handler(
-        MessageHandler(get_autos, filters.text & filters.command(["get_autos"]))
+        MessageHandler(get_autos, filters.text & is_admin.is_admin & filters.command(["get_autos"]))
     )
     bot.add_handler(
-        MessageHandler(add_autos, filters.text & filters.command(["autoclean"]))
+        MessageHandler(add_autos, filters.text & is_admin.is_admin & filters.command(["autoclean"]))
     )
     bot.add_handler(
         MessageHandler(
-            remove_autos, filters.text & filters.command(["remove_autoclean"])
+            remove_autos, filters.text & is_admin.is_admin & filters.command(["remove_autoclean"])
         )
     )
     bot.add_handler(

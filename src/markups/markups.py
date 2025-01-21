@@ -74,3 +74,10 @@ def get_settings_button():
                 [InlineKeyboardButton("◀️ Назад", callback_data="back_to_main")],
             ]
         )
+def get_users_ban_pending(from_user_id, id) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🚫 Забанить", callback_data=f"ban_user_{from_user_id}_{id}")],
+            [InlineKeyboardButton("❌ Отмена", callback_data="cancel")],
+        ]
+    )

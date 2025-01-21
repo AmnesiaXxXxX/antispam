@@ -87,8 +87,8 @@ async def delete_word_handler(client, callback_query):
 async def ban_user_callback(client, callback_query):
     try:
         callback_query.data = callback_query.data.replace("ban_user_", "")
-        msg_id = int(callback_query.data.split("_")[1])
         user_id = int(callback_query.data.split("_")[0])
+        msg_id = int(callback_query.data.split("_")[1])
         chat_id = callback_query.message.chat.id
         target = await client.get_chat_member(chat_id, user_id)
 
@@ -345,3 +345,6 @@ async def cancel_add_word_callback(client, callback_query: CallbackQuery):
         await callback_query.message.edit_text(
             "⚙️ Настройки фильтрации:", reply_markup=get_filter_settings_button()
         )
+
+
+        

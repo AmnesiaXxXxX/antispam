@@ -42,8 +42,7 @@ def setup_handlers():
     bot.add_handler(MessageHandler(start, filters.text & filters.command(["start"])))
     bot.add_handler(MessageHandler(invert, filters.text & filters.command(["invert"])))
     bot.add_handler(
-        MessageHandler(gen_regex, filters.text & filters.command(["gen_regex"]))
-s_admin.is_admin    )
+        MessageHandler(gen_regex, filters.text & filters.command(["gen_regex"]) & is_admin.is_admin))
     bot.add_handler(
         MessageHandler(list_command, filters.text & filters.command(["list"]) & is_admin.is_admin)
     )

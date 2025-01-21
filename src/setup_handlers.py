@@ -29,35 +29,35 @@ def setup_handlers():
     bot.add_handler(
         MessageHandler(
             add_badword,
-            filters.text & filters.command(["add_badword"]) & is_admin.is_admin,
+            filters.text & filters.command(["add_badword"]) & is_admin,
         )
     )
     bot.add_handler(MessageHandler(on_new_member, filters.new_chat_members))
     bot.add_handler(
         MessageHandler(
             set_threshold,
-            filters.text & filters.command("set_threshold") & is_admin.is_admin,
+            filters.text & filters.command("set_threshold") & is_admin,
         )
     )
     bot.add_handler(MessageHandler(start, filters.text & filters.command(["start"])))
     bot.add_handler(MessageHandler(invert, filters.text & filters.command(["invert"])))
     bot.add_handler(
-        MessageHandler(gen_regex, filters.text & filters.command(["gen_regex"]) & is_admin.is_admin))
+        MessageHandler(gen_regex, filters.text & filters.command(["gen_regex"]) & is_admin))
     bot.add_handler(
-        MessageHandler(list_command, filters.text & filters.command(["list"]) & is_admin.is_admin)
+        MessageHandler(list_command, filters.text & filters.command(["list"]) & is_admin)
     )
     bot.add_handler(
-        MessageHandler(check_command, filters.text & filters.command(["check"]))
+        MessageHandler(check_command, filters.text & filters.command(["check"]) & is_admin)
     )
     bot.add_handler(
-        MessageHandler(get_autos, filters.text & is_admin.is_admin & filters.command(["get_autos"]))
+        MessageHandler(get_autos, filters.text  & filters.command(["get_autos"]) & is_admin)
     )
     bot.add_handler(
-        MessageHandler(add_autos, filters.text & is_admin.is_admin & filters.command(["autoclean"]))
+        MessageHandler(add_autos, filters.text & filters.command(["autoclean"]) & is_admin)
     )
     bot.add_handler(
         MessageHandler(
-            remove_autos, filters.text & is_admin.is_admin & filters.command(["remove_autoclean"])
+            remove_autos, filters.text & filters.command(["remove_autoclean"]) & is_admin
         )
     )
     bot.add_handler(

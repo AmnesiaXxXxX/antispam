@@ -18,6 +18,7 @@ from src.constants import (
     SPAM_THRESHOLD,
     START_MESSAGE,
     DONAT_MESSAGE,
+    NOTION_MESSAGE,
     token,
     waiting_for_word,
 )
@@ -54,7 +55,7 @@ async def start(_, message: Message):
         logger.error(f"Произошла ошибка: {e}")
 
 
-async def is_user_admin(message: Message) -> bool:
+async def is_user_message_admin(message: Message) -> bool:
     try:
         user = await bot.get_chat_member(message.chat.id, message.from_user.id)
     except pyrogram.errors.UserNotParticipant:
@@ -402,10 +403,18 @@ async def leave_chat(_, message: Message):
 
 async def send_notion(client: Client, message: Message):
     try:
-        text = "🤖 Мой антиспам-бот защищает ваш чат от спама и хаоса. \nЕсли он вам помогает, любая копеечка поддержит его развитие и новые фишки. 🛡️✨\nСпасибо за вашу помощь! ❤️"
-        await message.reply(text, reply_markup=get_support_button(message.from_user.id))
+        await message.reply(
+            NOTION_MESSAGE, reply_markup=get_support_button(message.from_user.id)
+        )
     except Exception as e:
         logger.error(e)
+
+
+async def send_test(client: Client, message: Message):
+    for chat in db.get_all_chats():
+        client.send_message(
+            chat, NOTION_MESSAGE, reply_markup=get_support_button(message.from_user.id)
+        )
 
 
 def ensure_chat_exists(chat_id: int, chat_title: str | None = None):
@@ -538,7 +547,7 @@ async def handle_spam(message: Message, autos: list) -> None:
     db.add_spam_warning(message.from_user.id, message.chat.id, message.text)
     if len(message.text) > 1000:
         return
-    if await is_user_admin(message):
+    if await is_user_message_admin(message):
         await message.reply("Тебе не стыдно?")
     if str(message.chat.id) in autos:
         await message.delete()

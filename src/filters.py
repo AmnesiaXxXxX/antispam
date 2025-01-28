@@ -4,7 +4,7 @@ from pyrogram import filters
 from pyrogram.types import Message, CallbackQuery
 from pyrogram.client import Client
 from src.database import db
-from src.functions.functions import is_user_admin as is_admind
+from src.functions.functions import is_user_message_admin
 from src.utils.logger_config import logger
 from pyrogram.enums import ChatMemberStatus
 
@@ -17,7 +17,7 @@ class IsAdmin(filters.Filter):
         self, client: Client, message: Message | CallbackQuery
     ) -> bool:
         if isinstance(message, Message):
-            return await is_admind(message)
+            return await is_user_message_admin(message)
         elif isinstance(message, CallbackQuery):
             callback_query = message
             if callback_query.from_user.id in db.get_admins():

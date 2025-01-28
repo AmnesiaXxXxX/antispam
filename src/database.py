@@ -1,8 +1,97 @@
-import sqlite3
-from datetime import datetime
-from src.utils.logger_config import logger
-import unidecode
+import os
 import re
+import sqlite3
+from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from typing import List, Optional
+
+import matplotlib.pyplot as plt
+import numpy as np
+import unidecode
+from matplotlib.dates import DateFormatter, date2num
+from matplotlib.ticker import MaxNLocator
+from scipy.interpolate import make_interp_spline
+
+from src.utils.logger_config import logger
+
+
+def smooth_line(x, y, num_points=300):
+    """
+    Интерполяция данных для сглаживания линии.
+
+    :param x: Исходные значения оси X.
+    :param y: Исходные значения оси Y.
+    :param num_points: Количество точек для интерполяции.
+    :return: Сглаженные значения X и Y.
+    """
+    x_new = np.linspace(min(x), max(x), num_points)
+    spl = make_interp_spline(x, y, k=3)  # Кубический сплайн
+    y_smooth = spl(x_new)
+    return x_new, y_smooth
+
+
+def generate_plot(data):
+    """
+    Генерация одного графика на основе входных данных.
+
+    :param data: Кортеж (chat_id, raw_dates, raw_deleted_dates, output_dir)
+    :return: Путь к сохранённому графику
+    """
+    chat_id, raw_dates, raw_deleted_dates, output_dir = data
+
+    # Преобразование строк в объекты datetime.date
+    dates = [datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S").date() for row in raw_dates]
+
+    # Подсчёт количества сообщений по дням
+    daily_messages = defaultdict(int)
+    for date in dates:
+        daily_messages[date] += 1
+
+    # Подсчёт удалённых сообщений по дням
+    daily_deleted_messages = defaultdict(int)
+    for row in raw_deleted_dates:
+        date = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S").date()
+        daily_deleted_messages[date] += 1
+
+    # Преобразование дат в числовой формат
+    dates_numeric = date2num(list(daily_messages.keys()))
+    deleted_dates_numeric = date2num(list(daily_deleted_messages.keys()))
+
+    # Построение графика
+    with plt.style.context("dark_background"):
+        fig, ax = plt.subplots(figsize=(20, 10))
+        ax.plot(
+            dates_numeric,
+            list(daily_messages.values()),
+            label="Всего сообщений",
+        )
+        ax.plot(
+            deleted_dates_numeric,
+            list(daily_deleted_messages.values()),
+            label="Удалено сообщений",
+        )
+
+        # Настройки графика
+        ax.set_title(f"Статистика для чата {chat_id} за всё время", fontsize=20)
+        ax.set_xlabel("Дата", fontsize=16)
+        ax.set_ylabel("Количество", fontsize=16)
+        ax.legend(fontsize=12)
+        ax.grid(axis="y", linestyle="--", alpha=0.85)
+        ax.xaxis.set_major_locator(MaxNLocator(10))
+
+        # Форматирование оси X
+        date_formatter = DateFormatter("%Y-%m-%d")
+        ax.xaxis.set_major_formatter(date_formatter)
+        plt.xticks(rotation=45)
+
+        # Сохранение графика
+        os.makedirs(output_dir, exist_ok=True)
+        file_path = os.path.join(output_dir, f"chat_{chat_id}_stats_over_time.png")
+        plt.savefig(file_path, dpi=300)
+        plt.close(fig)
+
+    return file_path
 
 
 class Database:
@@ -12,7 +101,6 @@ class Database:
         self.create_tables()
 
     def create_tables(self):
-        # Таблица для всех пользователей
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -24,7 +112,6 @@ class Database:
             ban_pending BOOLEAN DEFAULT 0
         )""")
 
-        # Обновленная таблица verified_users с новыми полями
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS verified_users (
             user_id INTEGER PRIMARY KEY,
@@ -36,7 +123,6 @@ class Database:
             chats_count INTEGER
         )""")
 
-        # Таблица для каналов
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS chats (
             chat_id INTEGER PRIMARY KEY,
@@ -46,7 +132,6 @@ class Database:
             is_active BOOLEAN DEFAULT 1
         )""")
 
-        # Таблица для сообщений с внешним ключом на verified_users
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,7 +155,6 @@ class Database:
             FOREIGN KEY (chat_id) REFERENCES chats (chat_id)
         )""")
 
-        # Обновляем таблицу chat_badwords с внешним ключом
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS chat_badwords (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,7 +167,6 @@ class Database:
             UNIQUE(chat_id, word)
         )""")
 
-        # Таблица для спам-предупреждений
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS spam_warnings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,7 +185,6 @@ class Database:
             name TEXT
         )""")
 
-        # Добавляем индексы для оптимизации
         self.cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)"
         )
@@ -112,10 +194,6 @@ class Database:
 
         self.connection.commit()
 
-    def get_admins(self):
-        self.cursor.execute("SELECT user_id FROM users WHERE admin = 1")
-        return [row[0] for row in self.cursor.fetchall()]
-    
     def update_stats(
         self,
         chat_id: int,
@@ -124,7 +202,6 @@ class Database:
         users: bool = False,
         banned: bool = False,
     ):
-        # Выполняем вставку или обновление значений
         self.cursor.execute(
             """
             INSERT INTO statistics (chat_id, total_messages, deleted_messages, 
@@ -147,11 +224,44 @@ class Database:
         )
         self.connection.commit()
 
+    def get_most_common_word(
+        self, min_len: Optional[int] = 3, max_len: Optional[int] = 10
+    ) -> str:
+        try:
+            self.cursor.execute("SELECT message_text FROM messages")
+            rows = self.cursor.fetchall()
+
+            # Обработка данных
+            all_text = " ".join(
+                row[0] for row in rows if row[0]
+            )  # Объединяем все сообщения в один текст
+            words = re.findall(
+                r"\w+", all_text.lower()
+            )  # Разбиваем текст на слова и приводим к нижнему регистру
+
+            # Фильтрация слов по длине
+            filtered_words = [word for word in words if min_len <= len(word) <= max_len]  # type: ignore
+
+            # Подсчет повторений
+            word_counts: Counter[str] = Counter(filtered_words)
+
+            # Форматирование результата
+            most_common = word_counts.most_common(100)  # Топ-10 самых частых слов
+            result = "\n".join([f"{word}: {count}" for word, count in most_common])
+
+            return result
+
+        except Exception as e:
+            return str(e)
+
+    def get_admins(self):
+        self.cursor.execute("SELECT user_id FROM users WHERE admin = 1")
+        return [row[0] for row in self.cursor.fetchall()]
+
     def get_stats(self, chat_id):
         self.cursor.execute(
             """
-        SELECT total_messages, deleted_messages, 
-               total_users, banned_users 
+        SELECT total_messages, deleted_messages
         FROM statistics 
         WHERE chat_id = ?
         """,
@@ -176,13 +286,20 @@ class Database:
         self.cursor.execute("SELECT chat_id, title FROM chats WHERE is_active = 1")
         return self.cursor.fetchall()
 
-    def add_message(self, chat_id: int, user_id: int, message_text: str, is_spam):
+    def add_message(
+        self,
+        chat_id: int,
+        user_id: int,
+        message_text: str,
+        is_spam,
+        link: str | None = None,
+    ):
         self.cursor.execute(
             """
-        INSERT INTO messages (chat_id, user_id, message_text, timestamp, is_spam)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO messages (chat_id, user_id, message_text, timestamp, is_spam, link)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-            (chat_id, user_id, message_text, datetime.now(), is_spam),
+            (chat_id, user_id, message_text, datetime.now(), is_spam, link),
         )
         self.connection.commit()
 
@@ -196,7 +313,6 @@ class Database:
             except re.error:
                 return False
 
-        # Заменить строку:
         word = unidecode.unidecode(word.lower())
         if not is_regex_pattern(word):
             word = re.escape(word)
@@ -224,13 +340,13 @@ class Database:
     def get_user(self, user_id) -> dict | None:
         self.cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
         return self.cursor.fetchone()
-    
+
     def get_user_messages_count(self, user_id) -> int:
         self.cursor.execute(
             "SELECT COUNT(*) FROM messages WHERE user_id =?", (user_id,)
         )
         return self.cursor.fetchone()[0]
-    
+
     def add_verified_user(self, user_id: int, user_data) -> bool:
         """Добавляет проверенного пользователя в базу данных"""
         try:
@@ -297,7 +413,6 @@ class Database:
                 (user_id, chat_id, message_text),
             )
 
-            # Увеличиваем счетчик спама
             self.cursor.execute(
                 """
             UPDATE users 
@@ -317,11 +432,60 @@ class Database:
     def get_pending_bans(self) -> list:
         """Получает список пользователей, ожидающих бана"""
         self.cursor.execute("""
-        SELECT user_id
-        FROM users 
-        WHERE spam_count >= 3 and admin = 0
+            SELECT user_id
+            FROM users 
+            WHERE spam_count >= 3 and admin = 0
         """)
-        return self.cursor.fetchall()
+        result = [user[0] for user in self.cursor.fetchall()]
+        return result
+
+    def get_stats_graph(
+        self,
+        chat_id: Optional[int] | Optional[List[int]],
+        output_dir="src/stats/",
+    ) -> str | List[str] | bool:
+        """
+        Создаёт графики для нескольких чатов с использованием многопоточности.
+
+        :param self: объект базы данных
+        :param chat_ids: список идентификаторов чатов
+        :param output_dir: каталог для сохранения изображений
+        :return: Список путей к созданным графикам
+        """
+        tasks = []
+        if isinstance(chat_id, int):
+            chat_ids = [chat_id]
+        # Формирование задач для каждого чата
+        for chat_id in chat_ids:
+            # Получение всех сообщений для чата
+            self.cursor.execute(    
+                "SELECT datetime(timestamp, 'localtime') FROM messages WHERE chat_id = ? ORDER BY timestamp",
+                (chat_id,),
+            )
+            raw_dates = self.cursor.fetchall()
+
+            # Получение всех удалённых сообщений для чата
+            self.cursor.execute(
+                "SELECT datetime(timestamp, 'localtime') FROM messages WHERE chat_id = ? AND is_spam = 1 ORDER BY timestamp",
+                (chat_id,),
+            )
+            raw_deleted_dates = self.cursor.fetchall()
+
+            if raw_dates:
+                tasks.append((chat_id, raw_dates, raw_deleted_dates, output_dir))
+            else:
+                logger.info(f"No data found for chat_id {chat_id}.")
+        results = []
+        with ThreadPoolExecutor(max_workers=32) as executor:
+            futures = [executor.submit(generate_plot, task) for task in tasks]
+
+            for future in as_completed(futures):
+                try:
+                    results.append(future.result())
+                except Exception as e:
+                    logger.info(f"Error during graph generation: {e}")
+
+        return results[0] if len(results) == 1 else results
 
     def confirm_ban(self, user_id) -> bool:
         """Подтверждает бан пользователя администратором"""
@@ -365,5 +529,3 @@ class Database:
 
 
 db = Database("antispam.db")
-
-

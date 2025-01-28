@@ -53,31 +53,38 @@ def get_filter_settings_button():
             ],
         ]
     )
+
+
 def get_settings_button():
     return InlineKeyboardMarkup(
+        [
             [
-                [
-                    InlineKeyboardButton(
-                        "🔍 Настройки фильтрации", callback_data="filter_settings"
-                    )
-                ],
-                # [
-                #     InlineKeyboardButton(
-                #         " ⚙️ Пресеты фильтров", callback_data="ban_settings"
-                #     )
-                # ],
-                [
-                    InlineKeyboardButton(
-                        "⏰ Автоочистка", callback_data="autoclean_settings"
-                    )
-                ],
-                [InlineKeyboardButton("◀️ Назад", callback_data="back_to_main")],
-            ]
-        )
+                InlineKeyboardButton(
+                    "🔍 Настройки фильтрации", callback_data="filter_settings"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "⏰ Автоочистка", callback_data="autoclean_settings"
+                )
+            ],
+            [InlineKeyboardButton("◀️ Назад", callback_data="back_to_main")],
+        ]
+    )
+
+
 def get_users_ban_pending(from_user_id, id) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🚫 Забанить", callback_data=f"ban_user_{from_user_id}_{id}")],
+            [
+                InlineKeyboardButton(
+                    "🚫 Забанить", callback_data=f"ban_user_{from_user_id}_{id}"
+                )
+            ],
             [InlineKeyboardButton("❌ Отмена", callback_data="cancel")],
         ]
     )
+
+
+def get_support_button() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton("Задонатить ❤️", url="https://t.me/NMWhore_bot?start=donat1234")]])

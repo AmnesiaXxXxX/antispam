@@ -8,3 +8,4 @@ antispam.*
 __pycache__/
 .vscode
 .sh
+stats/

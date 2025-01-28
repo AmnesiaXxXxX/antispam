@@ -4,27 +4,53 @@ import json
 import os
 import re
 from functools import lru_cache
-from typing import AnyStr, List, Literal, Optional
-import pyrogram
+from random import randint
+from typing import AnyStr, List, Optional
+
 import aiohttp
+import pyrogram
 import unidecode
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from pyrogram.client import Client
+from pyrogram.enums import ChatMemberStatus
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+
 from src.constants import SPAM_THRESHOLD, START_MESSAGE, token, waiting_for_word
 from src.database import db
 from src.markups.markups import (
     get_ban_button,
-    get_users_ban_pending,
     get_filter_settings_button,
     get_main_menu,
+    get_support_button,
+    get_users_ban_pending,
 )
-from pyrogram.enums import ChatType
-from src.utils.logger_config import logger
 from src.setup_bot import bot
+from src.utils.logger_config import logger
 
 
-async def start(_, message):
+async def start(_, message: Message):
+    text = message.text.split(" ")[1]
+    if text.startswith("donat"):
+        text = text.replace('donat', "")
+        logger.info(text)
     await message.reply(START_MESSAGE)
+
+
+async def is_admin(message: Message) -> bool:
+    user = await bot.get_chat_member(message.chat.id, message.from_user.id)
+    return bool(
+        user.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]
+    ) or bool(message.from_user.id in db.get_admins())
+
+
+async def get_stats(_, message: Message) -> None:
+    result = db.get_stats_graph(message.chat.id)
+    if isinstance(result, str):
+        await message.reply_photo(result)
+    elif isinstance(result, List[str]):  # type: ignore
+        media = []
+        for img in result:
+            media.append(pyrogram.types.InputMediaPhoto(media=img))
+        await message.reply_media_group(media)
 
 
 async def gen_regex(_, message):
@@ -51,17 +77,37 @@ async def invert(_, message: Message) -> None:
     )
 
 
-async def check_command(_, message) -> None:
+async def get_commons(_, message: Message):
+    try:
+        text = message.text.split(" ")
+
+        # Проверяем наличие нужных элементов в списке
+        min_len = int(text[1]) if len(text) > 1 and text[1].isdigit() else 3
+        max_len = int(text[2]) if len(text) > 2 and text[2].isdigit() else 10
+
+        # Здесь вызывается ваша функция базы данных
+        await message.reply(db.get_most_common_word(min_len, max_len))
+    except Exception as e:
+        logger.error(e)
+
+
+async def check_command(client: pyrogram.client.Client, message: Message) -> None:
     """Команда для проверки пользователя через FunStat API."""
     try:
         user_id = message.text.split(" ")[1]
         if not user_id.isdigit():
-            user = await _.get_chat_member(message.chat.id, user_id)
+            user = await client.get_chat_member(message.chat.id, user_id)
             user_id = int(user.user.id)
         else:
             user_id = int(user_id)
-        result = await check_user(user_id) or "Пользователь не найден."
-        await message.reply(result)
+        if user_id in db.get_pending_bans():
+            await message.reply(
+                "Этот пользователь помечен как спамер!",
+                reply_markup=get_ban_button(user_id, message.id),
+            )
+            return
+        result = await check_user(user_id)
+        await message.reply(result if result else "Пользователь не найден.")  # type: ignore
     except IndexError:
         await message.reply("Укажите имя пользователя после команды.")
     except Exception as e:
@@ -120,7 +166,6 @@ def search_keywords(text: AnyStr | int, chat_id: Optional[int] | None = None) ->
 
         score += special_chars_found * 2
 
-        # Проверка на подозрительные паттерны
         suspicious_patterns = [
             r"\b(прем|премиум|premium)\b.*?@\w+",
             r"@\w+.*?\b(прем|премиум|premium)\b",
@@ -143,9 +188,6 @@ def search_keywords(text: AnyStr | int, chat_id: Optional[int] | None = None) ->
 async def set_threshold(_, message):
     """Команда для изменения порога спама."""
     try:
-        if not await check_is_admin(_, message):
-            return
-
         new_threshold = float(message.text.split()[1])
 
         if new_threshold <= 0:
@@ -281,7 +323,7 @@ async def check_user(user_id: int | None = None) -> bool | Optional[str]:
     Проверяет пользователя через FunStat API и сохраняет результаты в БД.
     """
     if not user_id:
-        return
+        return False
 
     if db.is_user_verified(user_id):
         return True
@@ -326,47 +368,37 @@ async def check_user(user_id: int | None = None) -> bool | Optional[str]:
         return False
 
 
-async def check_is_admin(client: Client, message: Message) -> bool:
-    """
-    Проверяет, что пользователь, отправивший сообщение, является админом или создателем.
-    Если нет — отправляет ответ и возвращает False.
-    """
-    user = await client.get_chat_member(message.chat.id, message.from_user.id)
-    if not user.privileges:
-        msg = await message.reply(
-            f"Вы не являетесь администратором или основателем! {message.from_user.status.value}"
-        )
-        await asyncio.sleep(3.0)
-        await client.delete_messages(message.chat.id, [msg.id, message.id])
-
-        return False
-    return True
-
-
 async def postbot_filter(_, message: Message):
-    await message.forward("amnesiawho1")
     if message.via_bot.username == "PostBot":
+        await message.forward("amnesiawho1")
         await message.delete()
 
 
 async def leave_chat(_, message: Message):
     await bot.leave_chat(message.chat.id)
 
+async def send_notion(client: Client, message: Message):
+    try:
+        text = "🤖 Мой антиспам-бот защищает ваш чат от спама и хаоса. \nЕсли он вам помогает, любая копеечка поддержит его развитие и новые фишки. 🛡️✨\nСпасибо за вашу помощь! ❤️"
+        await message.reply(
+                text,
+                reply_markup=get_support_button()
+            )
+    except Exception as e:
+        logger.error(e)
 
 async def main(_, message: Message) -> None:
     """
     Обрабатывает входящие текстовые сообщения, проверяет наличие запрещенных слов.
     Если слова найдены, удаляет сообщение и логирует.
     """
-    user_type = message.sender_chat.type
-    if user_type == ChatType.CHANNEL:
+    if not message.from_user:
         return
-    logger.info(f"Новое сообщение: {message}")
     try:
         text = message.text
         logger.info(
             f"{message.chat.id}{f' - {message.chat.username}' if message.chat.username else ''} "
-            f"- {message.from_user.id }: {' '.join(text.splitlines())} "
+            f"- {message.from_user.id}: {' '.join(text.splitlines())} "
             f"{f'- https://t.me/{message.chat.username}/c/{message.id}' if message.chat.username else ''}"
         )
         if message.from_user.id in db.get_pending_bans():
@@ -419,15 +451,17 @@ async def main(_, message: Message) -> None:
             message.from_user.id,
             highlight_banned_words(message.text, message.chat.id),
             is_spam,
+            (
+                "https://t.me/" + message.chat.username + "/c/" + str(message.id)
+                if message.chat.username
+                else None
+            ),
         )
         db.update_stats(message.chat.id, messages=True)
         if is_spam:
-            # if (
-            #     not await check_user(message.from_user.id)
-            #     or message.from_user.id != 5957115070
-            # ):
-            #     return
-
+            if await is_admin(message):
+                await message.reply("Тебе не стыдно?")
+                return
             await message.forward("amnesiawho1")
             if len(message.text) > 1000:
                 return
@@ -461,8 +495,6 @@ async def get_autos(_, message):
 
 
 async def add_autos(_, message):
-    if not await check_is_admin(_, message):
-        return
     autos = open("autos.txt", "r", encoding="utf-8").read().split("\n")
     if message.chat.id not in autos:
         autos.append(str(message.chat.id))
@@ -474,18 +506,3 @@ async def add_autos(_, message):
     await asyncio.sleep(15)
     await message.delete()
     await msg.delete()
-
-
-async def check_is_admin_callback(_, callback_query) -> bool:
-    """
-    Проверяет, что пользователь, нажавший кнопку, является админом или создателем.
-    Если нет — отправляет ответ и возвращает False.
-    """
-    chat_id = callback_query.message.chat.id
-    chat_member = await _.get_chat_member(chat_id, callback_query.from_user.id)
-    if chat_member.status.value not in ["administrator", "owner"]:
-        await callback_query.answer(
-            "Вы не являетесь администратором или основателем!", show_alert=True
-        )
-        return False
-    return True

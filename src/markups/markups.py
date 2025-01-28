@@ -113,6 +113,5 @@ def get_donations_buttons() -> InlineKeyboardMarkup:
                     "DonationAlerts", url="https://www.donationalerts.com/c/amnesiawho"
                 )
             ],
-
         ]
     )

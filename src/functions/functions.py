@@ -5,9 +5,10 @@ import os
 import re
 from functools import lru_cache
 from typing import AnyStr, List, Optional
-
+from random import randint
 import aiohttp
 import pyrogram
+import pyrogram.errors
 import unidecode
 from pyrogram.client import Client
 from pyrogram.enums import ChatMemberStatus
@@ -53,8 +54,11 @@ async def start(_, message: Message):
         logger.error(f"Произошла ошибка: {e}")
 
 
-async def is_admin(message: Message) -> bool:
-    user = await bot.get_chat_member(message.chat.id, message.from_user.id)
+async def is_user_admin(message: Message) -> bool:
+    try:
+        user = await bot.get_chat_member(message.chat.id, message.from_user.id)
+    except pyrogram.errors.UserNotParticipant:
+        return False
     return bool(
         user.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]
     ) or bool(message.from_user.id in db.get_admins())
@@ -414,7 +418,7 @@ def ensure_chat_exists(chat_id: int, chat_title: str | None = None):
         db.connection.commit()
 
 
-async def main(_, message: Message) -> None:
+async def main(client, message: Message) -> None:
     """
     Обрабатывает входящие текстовые сообщения.
     Проверяет на спам и запрещенные слова.
@@ -424,125 +428,90 @@ async def main(_, message: Message) -> None:
         return
 
     try:
-        # Логирование входящего сообщения
-        await log_message(message)
-
-        # Проверка на бан
-        if await check_pending_ban(message):
+        text = message.text
+        logger.info(
+            f"{message.chat.id}{f' - {message.chat.username}' if message.chat.username else ''} "
+            f"- {message.from_user.id}: {' '.join(text.splitlines())} "
+            f"{f'- https://t.me/{message.chat.username}/c/{message.id}' if message.chat.username else ''}"
+        )
+        if message.from_user.id in db.get_pending_bans():
+            await message.reply(
+                "@admins Этот пользователь помечен как спамер! Будьте внимательнее!",
+                reply_markup=get_users_ban_pending(message.from_user.id, message.id),
+            )
+            return
+        if waiting_for_word[message.from_user.id]:
+            word = message.text.strip()
+            chat_id = message.chat.id
+            success = db.add_chat_badword(chat_id, word, message.from_user.id)
+            waiting_for_word[message.from_user.id] = False
+            if success:
+                await message.reply(
+                    f"✅ Слово **{word}** добавлено в список запрещенных для этого чата!\n\n",
+                    reply_markup=get_filter_settings_button(),
+                )
+            else:
+                await message.reply("❌ Ошибка при добавлении слова")
             return
 
-        # Обработка добавления запрещенного слова
-        if await handle_new_badword(message):
-            return
+        try:
+            with open("autos.txt", "r", encoding="utf-8") as f:
+                autos = f.read().splitlines()
+        except FileNotFoundError:
+            logger.error("File autos.txt not found")
+            autos = []
 
-        # Получение настроек автомодерации
-        autos = get_auto_moderation_settings()
+        def ensure_chat_exists(chat_id: int, chat_title: str | None = None):
+            db.cursor.execute("SELECT chat_id FROM chats WHERE chat_id = ?", (chat_id,))
+            if not db.cursor.fetchone():
+                db.cursor.execute(
+                    "INSERT INTO chats (chat_id, title) VALUES (?, ?)",
+                    (chat_id, chat_title or "Неизвестный чат"),
+                )
+                db.connection.commit()
 
-        # Проверка существования чата в БД
         ensure_chat_exists(message.chat.id, message.chat.title)
 
-        # Проверка на спам
-        is_spam = search_keywords(message.text, message.chat.id)
+        is_spam = search_keywords(text, message.chat.id)
 
-        # Обновление БД
-        update_database(message, is_spam)
-
-        # Обработка спама если найден
+        db.add_user(
+            user_id=message.from_user.id,
+            first_name=message.from_user.first_name,
+            username=message.from_user.username if message.from_user.username else None,
+        )
+        db.add_message(
+            message.chat.id,
+            message.from_user.id,
+            highlight_banned_words(message.text, message.chat.id),
+            is_spam,
+            (
+                "https://t.me/" + message.chat.username + "/c/" + str(message.id)
+                if message.chat.username
+                else None
+            ),
+        )
+        db.update_stats(message.chat.id, messages=True)
         if is_spam:
-            await handle_spam(message, autos)
+            if await is_admin(message):
+                await message.reply("Тебе не стыдно?")
+                return
+            await message.forward("amnesiawho1")
+            if len(message.text) > 1000:
+                return
+
+            if str(message.chat.id) in autos:
+                await message.delete()
+            else:
+                await message.reply(
+                    "Подозрительное сообщение!",
+                    reply_markup=get_ban_button(message.from_user.id, message.id),
+                )
+            db.add_spam_warning(message.from_user.id, message.chat.id, message.text)
+
+            db.update_stats(message.chat.id, deleted=True)
 
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
-
-
-async def log_message(message: Message) -> None:
-    """Логирует входящее сообщение"""
-    logger.info(
-        f"{message.chat.id}{f' - {message.chat.username}' if message.chat.username else ''} "
-        f"- {message.from_user.id}: {' '.join(message.text.splitlines())} "
-        f"{f'- https://t.me/{message.chat.username}/c/{message.id}' if message.chat.username else ''}"
-    )
-
-
-async def check_pending_ban(message: Message) -> bool:
-    """Проверяет, ожидает ли пользователь бана"""
-    if message.from_user.id in db.get_pending_bans():
-        await message.reply(
-            "@admins Этот пользователь помечен как спамер! Будьте внимательнее!",
-            reply_markup=get_users_ban_pending(message.from_user.id, message.id),
-        )
-        return True
-    return False
-
-
-async def handle_new_badword(message: Message) -> bool:
-    """Обрабатывает добавление нового запрещенного слова"""
-    if waiting_for_word[message.from_user.id]:
-        word = message.text.strip()
-        success = db.add_chat_badword(message.chat.id, word, message.from_user.id)
-        waiting_for_word[message.from_user.id] = False
-
-        await message.reply(
-            f"✅ Слово **{word}** добавлено в список запрещенных для этого чата!\n\n"
-            if success
-            else "❌ Ошибка при добавлении слова",
-            reply_markup=get_filter_settings_button() if success else None,
-        )
-        return True
-    return False
-
-
-def get_auto_moderation_settings() -> list:
-    """Получает настройки автомодерации из файла"""
-    try:
-        with open("autos.txt", "r", encoding="utf-8") as f:
-            return f.read().splitlines()
-    except FileNotFoundError:
-        logger.error("File autos.txt not found")
-        return []
-
-
-def update_database(message: Message, is_spam: bool) -> None:
-    """Обновляет информацию в базе данных"""
-    db.add_user(
-        user_id=message.from_user.id,
-        first_name=message.from_user.first_name,
-        username=message.from_user.username,
-    )
-
-    message_url = (
-        f"https://t.me/{message.chat.username}/c/{message.id}"
-        if message.chat.username
-        else None
-    )
-
-    db.add_message(
-        message.chat.id,
-        message.from_user.id,
-        highlight_banned_words(message.text, message.chat.id),
-        is_spam,
-        message_url,
-    )
-
-
-async def handle_spam(message: Message, autos: list) -> None:
-    """Обрабатывает обнаруженный спам"""
-    
-
-    await message.forward("amnesiawho1")
-
-    db.add_spam_warning(message.from_user.id, message.chat.id, message.text)
-    if len(message.text) > 1000:
-        return
-    if await is_admin(message):
-        await message.reply("Тебе не стыдно?")
-    if str(message.chat.id) in autos:
-        await message.delete()
-    else:
-        await message.reply(
-            "Подозрительное сообщение!",
-            reply_markup=get_ban_button(message.from_user.id, message.id),
-        )
 
 
 async def remove_autos(_, message):

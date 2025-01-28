@@ -18,7 +18,7 @@ from src.functions.functions import (
     main,
     postbot_filter,
     leave_chat,
-    send_notion
+    send_notion,
 )
 from app import bot
 
@@ -30,14 +30,17 @@ def setup_handlers():
     bot.add_handler(MessageHandler(leave_chat, filters.command(["leave"])))
     bot.add_handler(MessageHandler(start, filters.text & filters.command(["start"])))
     bot.add_handler(MessageHandler(invert, filters.text & filters.command(["invert"])))
-    bot.add_handler(MessageHandler(get_commons, filters.text & filters.command(["get_commons"])))
-    bot.add_handler(MessageHandler(send_notion, filters.text & filters.command(["test"])))
-    
-    
+    bot.add_handler(
+        MessageHandler(get_commons, filters.text & filters.command(["get_commons"]))
+    )
+    bot.add_handler(
+        MessageHandler(send_notion, filters.text & filters.command(["test"]))
+    )
+
     bot.add_handler(
         MessageHandler(menu_command, filters.text & filters.command(["menu"]))
     )
-    
+
     bot.add_handler(
         MessageHandler(
             set_threshold,

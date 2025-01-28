@@ -101,7 +101,8 @@ class Database:
         self.create_tables()
 
     def create_tables(self):
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
             first_name TEXT,
@@ -110,9 +111,11 @@ class Database:
             spam_count INTEGER DEFAULT 0,
             is_banned BOOLEAN DEFAULT 0,
             ban_pending BOOLEAN DEFAULT 0
-        )""")
+        )"""
+        )
 
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS verified_users (
             user_id INTEGER PRIMARY KEY,
             first_name TEXT,
@@ -121,18 +124,22 @@ class Database:
             first_message_date TEXT,
             messages_count INTEGER,
             chats_count INTEGER
-        )""")
+        )"""
+        )
 
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS chats (
             chat_id INTEGER PRIMARY KEY,
             title TEXT,
             join_date TIMESTAMP,
             settings TEXT,
             is_active BOOLEAN DEFAULT 1
-        )""")
+        )"""
+        )
 
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chat_id INTEGER,
@@ -142,8 +149,10 @@ class Database:
             is_spam BOOLEAN,
             FOREIGN KEY (chat_id) REFERENCES chats (chat_id),
             FOREIGN KEY (user_id) REFERENCES verified_users (user_id)
-        )""")
-        self.cursor.execute("""
+        )"""
+        )
+        self.cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS statistics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chat_id INTEGER UNIQUE,
@@ -153,9 +162,11 @@ class Database:
             banned_users INTEGER DEFAULT 0,
             last_updated TIMESTAMP,
             FOREIGN KEY (chat_id) REFERENCES chats (chat_id)
-        )""")
+        )"""
+        )
 
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS chat_badwords (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chat_id INTEGER,
@@ -165,9 +176,11 @@ class Database:
             FOREIGN KEY (chat_id) REFERENCES chats (chat_id),
             FOREIGN KEY (added_by) REFERENCES verified_users (user_id),
             UNIQUE(chat_id, word)
-        )""")
+        )"""
+        )
 
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS spam_warnings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -177,13 +190,16 @@ class Database:
             is_confirmed BOOLEAN DEFAULT 0,
             FOREIGN KEY (user_id) REFERENCES users (user_id),
             FOREIGN KEY (chat_id) REFERENCES chats (chat_id)
-        )""")
-        self.cursor.execute("""
+        )"""
+        )
+        self.cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS banwords_preset (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             words TEXT,
             name TEXT
-        )""")
+        )"""
+        )
 
         self.cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)"
@@ -431,11 +447,13 @@ class Database:
 
     def get_pending_bans(self) -> list:
         """Получает список пользователей, ожидающих бана"""
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
             SELECT user_id
             FROM users 
             WHERE spam_count >= 3 and admin = 0
-        """)
+        """
+        )
         result = [user[0] for user in self.cursor.fetchall()]
         return result
 
@@ -458,7 +476,7 @@ class Database:
         # Формирование задач для каждого чата
         for chat_id in chat_ids:
             # Получение всех сообщений для чата
-            self.cursor.execute(    
+            self.cursor.execute(
                 "SELECT datetime(timestamp, 'localtime') FROM messages WHERE chat_id = ? ORDER BY timestamp",
                 (chat_id,),
             )

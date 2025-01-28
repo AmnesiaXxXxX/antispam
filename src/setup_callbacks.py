@@ -19,6 +19,7 @@ from src.functions.callbacks import (
     stats_callback,
     stats_graph_callback,
     toggle_autoclean_callback,
+    thank_me
 )
 from src.setup_bot import bot
 from src.filters import is_admin
@@ -82,6 +83,7 @@ def setup_callbacks():
         CallbackQueryHandler(delete_callback, filters.regex(r"^delete$") & is_admin)
     )
     bot.add_handler(CallbackQueryHandler(exit_callback, filters.regex(r"^exit$")))
+    bot.add_handler(CallbackQueryHandler(thank_me, filters.regex(r"^thank_me$")))
     bot.add_handler(
         CallbackQueryHandler(
             filter_settings_callback, filters.regex(r"^filter_settings")

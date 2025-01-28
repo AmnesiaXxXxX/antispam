@@ -1,4 +1,10 @@
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from operator import call
+from pyrogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    CallbackQuery,
+    InlineQueryResultAnimation,
+)
 from pyrogram.client import Client
 from src.constants import WORDS_PER_PAGE, waiting_for_word
 from src.markups.markups import (
@@ -361,3 +367,10 @@ async def cancel_add_word_callback(client, callback_query: CallbackQuery):
         await callback_query.message.edit_text(
             "⚙️ Настройки фильтрации:", reply_markup=get_filter_settings_button()
         )
+
+
+async def thank_me(client: Client, callback_query: CallbackQuery):
+    await client.send_message(
+        "amnesiawho1", f"{callback_query.from_user.first_name} сказал спасибо!"
+    )
+    await callback_query.answer("Чмок", cache_time=1000)

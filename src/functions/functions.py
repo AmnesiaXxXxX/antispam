@@ -4,7 +4,6 @@ import json
 import os
 import re
 from functools import lru_cache
-from random import randint
 from typing import AnyStr, List, Optional
 
 import aiohttp
@@ -14,10 +13,17 @@ from pyrogram.client import Client
 from pyrogram.enums import ChatMemberStatus
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from src.constants import SPAM_THRESHOLD, START_MESSAGE, token, waiting_for_word
+from src.constants import (
+    SPAM_THRESHOLD,
+    START_MESSAGE,
+    DONAT_MESSAGE,
+    token,
+    waiting_for_word,
+)
 from src.database import db
 from src.markups.markups import (
     get_ban_button,
+    get_donations_buttons,
     get_filter_settings_button,
     get_main_menu,
     get_support_button,
@@ -28,11 +34,24 @@ from src.utils.logger_config import logger
 
 
 async def start(_, message: Message):
-    text = message.text.split(" ")[1]
-    if text.startswith("donat"):
-        text = text.replace('donat', "")
-        logger.info(text)
-    await message.reply(START_MESSAGE)
+    try:
+        if not logger:
+            raise ValueError("Logger не инициализирован")
+
+        logger.info(f"Получено сообщение: {message.text}")
+
+        if len(message.text.split()) > 1:
+            text = message.text.split(" ", 1)[1]
+            if len(text) > 3 and text.startswith("donat"):
+                text = text[5:]
+                await message.reply(DONAT_MESSAGE, reply_markup=get_donations_buttons())
+        else:
+            await message.reply(START_MESSAGE)
+    except AttributeError as e:
+        logger.error(f"Произошла ошибка: {e}. Возможно, message.text = {message.text}")
+    except Exception as e:
+        logger.error(f"Произошла ошибка: {e}")
+
 
 
 async def is_admin(message: Message) -> bool:
@@ -377,15 +396,14 @@ async def postbot_filter(_, message: Message):
 async def leave_chat(_, message: Message):
     await bot.leave_chat(message.chat.id)
 
+
 async def send_notion(client: Client, message: Message):
     try:
         text = "🤖 Мой антиспам-бот защищает ваш чат от спама и хаоса. \nЕсли он вам помогает, любая копеечка поддержит его развитие и новые фишки. 🛡️✨\nСпасибо за вашу помощь! ❤️"
-        await message.reply(
-                text,
-                reply_markup=get_support_button()
-            )
+        await message.reply(text, reply_markup=get_support_button(message.from_user.id))
     except Exception as e:
         logger.error(e)
+
 
 async def main(_, message: Message) -> None:
     """

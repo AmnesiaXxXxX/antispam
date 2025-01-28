@@ -86,5 +86,33 @@ def get_users_ban_pending(from_user_id, id) -> InlineKeyboardMarkup:
     )
 
 
-def get_support_button() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[InlineKeyboardButton("Задонатить ❤️", url="https://t.me/NMWhore_bot?start=donat1234")]])
+def get_support_button(user_id) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "Задонатить ❤️",
+                    url=f"https://t.me/NMWhore_bot?start=donat{user_id}",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "Просто сказать спасибо!",
+                    callback_data="thank_me",
+                )
+            ],
+        ]
+    )
+
+
+def get_donations_buttons() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "DonationAlerts", url="https://www.donationalerts.com/c/amnesiawho"
+                )
+            ],
+
+        ]
+    )

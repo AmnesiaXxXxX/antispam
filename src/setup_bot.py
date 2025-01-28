@@ -2,6 +2,7 @@ from pyrogram.client import Client
 
 from src.constants import api_hash, api_id, bot_token
 
+
 def setup_bot():
 
     return Client(
@@ -10,5 +11,6 @@ def setup_bot():
         api_hash=api_hash,
         bot_token=bot_token,
     )
-    
+
+
 bot = setup_bot()

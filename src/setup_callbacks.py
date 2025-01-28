@@ -19,7 +19,7 @@ from src.functions.callbacks import (
     stats_callback,
     stats_graph_callback,
     toggle_autoclean_callback,
-    thank_me
+    thank_me,
 )
 from src.setup_bot import bot
 from src.filters import is_admin

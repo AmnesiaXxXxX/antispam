@@ -5,9 +5,10 @@ import os
 import re
 from functools import lru_cache
 from typing import AnyStr, List, Optional
-
+from random import randint
 import aiohttp
 import pyrogram
+import pyrogram.errors
 import unidecode
 from pyrogram.client import Client
 from pyrogram.enums import ChatMemberStatus
@@ -53,9 +54,11 @@ async def start(_, message: Message):
         logger.error(f"Произошла ошибка: {e}")
 
 
-
-async def is_admin(message: Message) -> bool:
-    user = await bot.get_chat_member(message.chat.id, message.from_user.id)
+async def is_user_admin(message: Message) -> bool:
+    try:
+        user = await bot.get_chat_member(message.chat.id, message.from_user.id)
+    except pyrogram.errors.UserNotParticipant:
+        return False
     return bool(
         user.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]
     ) or bool(message.from_user.id in db.get_admins())
@@ -405,7 +408,7 @@ async def send_notion(client: Client, message: Message):
         logger.error(e)
 
 
-async def main(_, message: Message) -> None:
+async def main(client, message: Message) -> None:
     """
     Обрабатывает входящие текстовые сообщения, проверяет наличие запрещенных слов.
     Если слова найдены, удаляет сообщение и логирует.
@@ -424,7 +427,6 @@ async def main(_, message: Message) -> None:
                 "@admins Этот пользователь помечен как спамер! Будьте внимательнее!",
                 reply_markup=get_users_ban_pending(message.from_user.id, message.id),
             )
-            return
         if waiting_for_word[message.from_user.id]:
             word = message.text.strip()
             chat_id = message.chat.id
@@ -458,7 +460,8 @@ async def main(_, message: Message) -> None:
         ensure_chat_exists(message.chat.id, message.chat.title)
 
         is_spam = search_keywords(text, message.chat.id)
-
+        if randint(1, 1000) == 1:
+            await send_notion(client, message)
         db.add_user(
             user_id=message.from_user.id,
             first_name=message.from_user.first_name,
@@ -475,9 +478,8 @@ async def main(_, message: Message) -> None:
                 else None
             ),
         )
-        db.update_stats(message.chat.id, messages=True)
         if is_spam:
-            if await is_admin(message):
+            if await is_user_admin(message):
                 await message.reply("Тебе не стыдно?")
                 return
             await message.forward("amnesiawho1")
@@ -493,8 +495,8 @@ async def main(_, message: Message) -> None:
                 )
             db.add_spam_warning(message.from_user.id, message.chat.id, message.text)
 
-            db.update_stats(message.chat.id, deleted=True)
-
+    except pyrogram.errors.UserNotParticipant:
+        pass
     except Exception as e:
         logger.exception(f"Error processing message: {e}")
 

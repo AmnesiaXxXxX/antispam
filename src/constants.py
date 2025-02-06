@@ -1,5 +1,6 @@
 import os
 from collections import defaultdict
+from xmlrpc.client import Boolean
 
 from dotenv import load_dotenv
 
@@ -36,12 +37,18 @@ NOTION_MESSAGE = "🤖 Мой антиспам-бот защищает ваш ч
 DONAT_MESSAGE = """
 Спасибо, что решили поддержать мой проект! Вы можете отправить пожертвование любым удобным способом:
 
-💳 **Карта РФ:**  
+💳 **Карта РФ:**
 2200700959855247
 
-💰 **Криптовалюта:**  
-- **TON:** ||`UQDUEUkYqsnVzTIge3tGXpjdsN2UOhlrDLgcBvS-FQE1gsws`||  
+💰 **Криптовалюта:**
+- **TON:** ||`UQDUEUkYqsnVzTIge3tGXpjdsN2UOhlrDLgcBvS-FQE1gsws`||
 - **USDT (TRC20):** ||`TFRXgou4bU63qNhMj4Bhx8ituWFfTAqbZX`||
 
 Ваша поддержка помогает развивать проект. Спасибо! ❤️
 """
+ARG_DEFINITIONS = {
+    "min_len": (int, 3),
+    "max_len": (int, 10),
+    "limit": (int, 20),
+    "reverse": (Boolean, False),  # Пример строкового аргумента
+}

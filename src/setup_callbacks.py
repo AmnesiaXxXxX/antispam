@@ -10,7 +10,6 @@ from src.functions.callbacks import (
     cancel_callback,
     delete_callback,
     delete_word_handler,
-    donat_payment,
     exit_callback,
     filter_settings_callback,
     list_badwords_callback,
@@ -58,12 +57,6 @@ def setup_callbacks():
         CallbackQueryHandler(
             autoclean_settings_callback,
             filters.regex(r"^autoclean_settings") & is_admin,
-        )
-    )
-    bot.add_handler(
-        CallbackQueryHandler(
-            donat_payment,
-            filters.regex(r"^donat_payment"),
         )
     )
     bot.add_handler(

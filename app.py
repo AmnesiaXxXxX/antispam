@@ -1,6 +1,6 @@
 import time
 
-from src.callback.server import app
+# from src.callback.server import app
 from src.setup_bot import bot
 from src.utils.logger_config import logger
 

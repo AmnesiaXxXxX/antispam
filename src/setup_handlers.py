@@ -17,9 +17,9 @@ from src.functions.functions import (
     check_command,
     main,
     postbot_filter,
+    search,
     leave_chat,
-    send_notion,
-    send_test
+    send_test,
 )
 from app import bot
 
@@ -31,12 +31,11 @@ def setup_handlers():
     bot.add_handler(MessageHandler(leave_chat, filters.command(["leave"])))
     bot.add_handler(MessageHandler(start, filters.text & filters.command(["start"])))
     bot.add_handler(MessageHandler(invert, filters.text & filters.command(["invert"])))
+    bot.add_handler(MessageHandler(search, filters.text & filters.command(["search"])))
     bot.add_handler(
         MessageHandler(get_commons, filters.text & filters.command(["get_commons"]))
     )
-    bot.add_handler(
-        MessageHandler(send_test, filters.text & filters.command(["test"]))
-    )
+    bot.add_handler(MessageHandler(send_test, filters.text & filters.command(["test"])))
 
     bot.add_handler(
         MessageHandler(menu_command, filters.text & filters.command(["menu"]))
